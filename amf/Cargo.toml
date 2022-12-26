@@ -1,0 +1,19 @@
+[package]
+name = "taxila-amf"
+version = "0.0.1"
+authors = ["Abhijit Gadgil <gabhijit@iitbombay.org>"]
+edition = "2018"
+description = "5G Access and Moblility Management Function implementation in Rust."
+keywords = ["5g", "amf"]
+repository = "https://github.com/gabhijit/taxila.git"
+readme = "README.md"
+
+[build-dependencies]
+asn1-compiler = "0.5"
+
+[dependencies]
+asn1-codecs = "0.5"
+asn1_codecs_derive = "0.5"
+serde = "1.0"
+bitvec = { version = "1.0", features = ["serde"] }
+log = "0.4"
