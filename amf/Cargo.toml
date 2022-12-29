@@ -15,5 +15,8 @@ asn1-compiler = "0.5"
 asn1-codecs = "0.5"
 asn1_codecs_derive = "0.5"
 serde = "1.0"
+serde_yaml = "0.9"
 bitvec = { version = "1.0", features = ["serde"] }
 log = "0.4"
+sctp-rs = "0.1"
+tokio = { version = "1.0", features = ["rt"] }

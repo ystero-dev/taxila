@@ -7,6 +7,7 @@ use asn1_compiler::{
 };
 
 fn main() -> std::io::Result<()> {
+    println!("cargo:rerun-if-changed=specs/ngap.asn");
     let module = "ngap.rs";
     let spec_file_name = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap())
         .join("specs")
