@@ -26,8 +26,10 @@ impl Amf {
         })
     }
 
-    pub fn run(&self) {
+    pub async fn run(&mut self) -> std::io::Result<()> {
         log::info!("Started");
+        self.ngap.run().await?;
+        Ok(())
     }
 }
 

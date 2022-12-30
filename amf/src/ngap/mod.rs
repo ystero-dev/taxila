@@ -1,11 +1,22 @@
 pub(crate) mod messages;
 
+use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
+
 use sctp_rs::{BindxFlags, ConnectedSocket, Listener, Socket, SocketToAssociation};
-use std::net::IpAddr;
+
+const NGAP_SCTP_PORT: u16 = 38412;
+const NGAP_SCTP_PPID: u32 = 60;
+
+pub struct Gnb {}
+
+impl Gnb {
+    async fn handle_new_connection(me: Arc<Mutex<Self>>, sock: ConnectedSocket, peer: SocketAddr) {}
+}
 
 pub struct NgapManager {
     socket: Listener,
-    peers: Vec<ConnectedSocket>,
+    peers: Vec<Arc<Mutex<Gnb>>>,
 }
 
 impl NgapManager {
@@ -15,7 +26,7 @@ impl NgapManager {
         let port = if config.port.is_some() {
             config.port.unwrap()
         } else {
-            38412_u16
+            NGAP_SCTP_PORT
         };
 
         let mut bind_addrs = vec![];
@@ -33,5 +44,20 @@ impl NgapManager {
             socket,
             peers: vec![],
         })
+    }
+
+    pub async fn run(&mut self) -> std::io::Result<()> {
+        loop {
+            let (accepted, client_addr) = self.socket.accept().await?;
+
+            let gnb = Arc::new(Mutex::new(Gnb {}));
+
+            self.peers.push(Arc::clone(&gnb));
+
+            // Accepted a Socket, this is always from one gNB.
+            tokio::task::spawn(async move {
+                Gnb::handle_new_connection(gnb, accepted, client_addr).await;
+            });
+        }
     }
 }
