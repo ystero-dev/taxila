@@ -1,17 +1,37 @@
 pub(crate) mod messages;
 
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
-use sctp_rs::{BindxFlags, ConnectedSocket, Listener, Socket, SocketToAssociation};
+use sctp_rs::{BindxFlags, ConnectedSocket, Listener, SendInfo, Socket, SocketToAssociation};
 
 const NGAP_SCTP_PORT: u16 = 38412;
 const NGAP_SCTP_PPID: u32 = 60;
 
-pub struct Gnb {}
+pub struct Gnb {
+    sock: ConnectedSocket,
+    _address: SocketAddr,
+}
 
 impl Gnb {
-    async fn handle_new_connection(me: Arc<Mutex<Self>>, sock: ConnectedSocket, peer: SocketAddr) {}
+    async fn handle_new_connection(me: Arc<Mutex<Self>>) -> std::io::Result<()> {
+        // This block is required because the `MutexGuard` below otherwise would only be dropped
+        // 'after' the loop (that is never).
+        {
+            let gnb = me.lock().await;
+            let send_info = SendInfo {
+                sid: 0, // Always use 'Stream ID' of '0' for the Non-UE signaling.
+                ppid: NGAP_SCTP_PPID,
+                flags: 0,
+                assoc_id: 0,
+                context: 0, // TODO: Use context later
+            };
+            (*gnb).sock.sctp_set_default_sendinfo(send_info)?;
+        }
+
+        loop {}
+    }
 }
 
 pub struct NgapManager {
@@ -46,17 +66,23 @@ impl NgapManager {
         })
     }
 
-    pub async fn run(&mut self) -> std::io::Result<()> {
+    pub async fn run(me: Arc<Mutex<Self>>) -> std::io::Result<()> {
         loop {
-            let (accepted, client_addr) = self.socket.accept().await?;
+            let mut ngap = me.lock().await;
+            let (accepted, client_addr) = (*ngap).socket.accept().await?;
 
-            let gnb = Arc::new(Mutex::new(Gnb {}));
+            let gnb = Arc::new(Mutex::new(Gnb {
+                sock: accepted,
+                _address: client_addr,
+            }));
 
-            self.peers.push(Arc::clone(&gnb));
+            (*ngap).peers.push(Arc::clone(&gnb));
 
             // Accepted a Socket, this is always from one gNB.
+            // TODO: Join on this task?
             tokio::task::spawn(async move {
-                Gnb::handle_new_connection(gnb, accepted, client_addr).await;
+                // TODO: Not sure what to do with the error?
+                let _ = Gnb::handle_new_connection(gnb).await;
             });
         }
     }

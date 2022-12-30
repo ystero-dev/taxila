@@ -1,4 +1,8 @@
 use std::net::IpAddr;
+use std::sync::Arc;
+
+use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
 
 use serde::{Deserialize, Serialize};
 
@@ -16,19 +20,26 @@ pub struct AmfConfig {
 }
 
 pub struct Amf {
-    ngap: NgapManager,
+    ngap: Arc<Mutex<NgapManager>>,
 }
 
 impl Amf {
     pub fn from_config(config: &AmfConfig) -> std::io::Result<Self> {
         Ok(Self {
-            ngap: NgapManager::from_config(&config.ngap)?,
+            ngap: Arc::new(Mutex::new(NgapManager::from_config(&config.ngap)?)),
         })
     }
 
     pub async fn run(&mut self) -> std::io::Result<()> {
         log::info!("Started");
-        self.ngap.run().await?;
+
+        let ngap = Arc::clone(&self.ngap);
+        let ngap_task_handle: JoinHandle<_> = tokio::spawn(async move {
+            let _ = NgapManager::run(ngap).await;
+        });
+
+        let _ = ngap_task_handle.await;
+
         Ok(())
     }
 }
