@@ -3,7 +3,7 @@ name = "taxila-amf"
 version = "0.0.1"
 authors = ["Abhijit Gadgil <gabhijit@iitbombay.org>"]
 edition = "2018"
-description = "5G Access and Moblility Management Function implementation in Rust."
+description = "5G Access and Moblility Management Function (AMF) implementation in Rust."
 keywords = ["5g", "amf"]
 repository = "https://github.com/gabhijit/taxila.git"
 readme = "README.md"
@@ -19,6 +19,6 @@ serde_yaml = "0.9"
 bitvec = { version = "1.0", features = ["serde"] }
 log = "0.4"
 sctp-rs = { version = "0.1" }
-tokio = { version = "1.0", features = ["rt", "sync"] }
+tokio = { version = "1.0", features = ["rt", "sync", "time"] }
 clap = { version = "4.0", features = [ "derive", "env"] }
 env_logger = { version = "0.9" }

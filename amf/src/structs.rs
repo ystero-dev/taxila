@@ -34,11 +34,11 @@ impl Amf {
         log::info!("Started");
 
         let ngap = Arc::clone(&self.ngap);
-        let ngap_task_handle: JoinHandle<_> = tokio::spawn(async move {
+        let ngap_task: JoinHandle<_> = tokio::spawn(async move {
             let _ = NgapManager::run(ngap).await;
         });
 
-        let _ = ngap_task_handle.await;
+        let _ = ngap_task.await;
 
         Ok(())
     }

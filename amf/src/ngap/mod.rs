@@ -1,7 +1,12 @@
 pub(crate) mod messages;
 
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
+use std::time::Duration;
+
 use tokio::sync::Mutex;
 
 use sctp_rs::{BindxFlags, ConnectedSocket, Listener, SendInfo, Socket, SocketToAssociation};
@@ -37,6 +42,7 @@ impl Gnb {
 pub struct NgapManager {
     socket: Listener,
     peers: Vec<Arc<Mutex<Gnb>>>,
+    should_stop: AtomicBool,
 }
 
 impl NgapManager {
@@ -63,27 +69,45 @@ impl NgapManager {
         Ok(Self {
             socket,
             peers: vec![],
+            should_stop: AtomicBool::new(false),
         })
     }
 
     pub async fn run(me: Arc<Mutex<Self>>) -> std::io::Result<()> {
         loop {
             let mut ngap = me.lock().await;
-            let (accepted, client_addr) = (*ngap).socket.accept().await?;
+            if *(*ngap).should_stop.get_mut() {
+                break;
+            }
+            let result =
+                tokio::time::timeout(Duration::from_millis(2000), (*ngap).socket.accept()).await;
+            match result {
+                Ok(result) => {
+                    let (accepted, client_addr) = result?;
+                    let gnb = Arc::new(Mutex::new(Gnb {
+                        sock: accepted,
+                        _address: client_addr,
+                    }));
 
-            let gnb = Arc::new(Mutex::new(Gnb {
-                sock: accepted,
-                _address: client_addr,
-            }));
+                    (*ngap).peers.push(Arc::clone(&gnb));
 
-            (*ngap).peers.push(Arc::clone(&gnb));
-
-            // Accepted a Socket, this is always from one gNB.
-            // TODO: Join on this task?
-            tokio::task::spawn(async move {
-                // TODO: Not sure what to do with the error?
-                let _ = Gnb::handle_new_connection(gnb).await;
-            });
+                    // Accepted a Socket, this is always from one gNB.
+                    // TODO: Join on this task?
+                    tokio::task::spawn(async move {
+                        // TODO: Not sure what to do with the error?
+                        let _ = Gnb::handle_new_connection(gnb).await;
+                    });
+                }
+                _ => {
+                    log::trace!("Elapsed timeout of 2 sec and no data.");
+                }
+            }
         }
+
+        Ok(())
+    }
+
+    pub(crate) fn stop(&mut self) {
+        self.should_stop.store(false, Ordering::Relaxed);
     }
 }

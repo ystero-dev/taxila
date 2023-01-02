@@ -14,7 +14,7 @@ struct Cli {
 async fn main() -> std::io::Result<()> {
     let cli = Cli::parse();
 
-    let level = if cli.debug > 1 {
+    let level = if cli.debug > 0 {
         if cli.debug == 1 {
             "debug"
         } else {
