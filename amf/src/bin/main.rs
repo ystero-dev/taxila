@@ -10,7 +10,7 @@ struct Cli {
     config: String,
 }
 
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() -> std::io::Result<()> {
     let cli = Cli::parse();
 

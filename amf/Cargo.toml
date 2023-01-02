@@ -19,6 +19,6 @@ serde_yaml = "0.9"
 bitvec = { version = "1.0", features = ["serde"] }
 log = "0.4"
 sctp-rs = { version = "0.1" }
-tokio = { version = "1.0", features = ["rt", "sync", "time"] }
+tokio = { version = "1.0", features = ["rt", "rt-multi-thread", "sync", "time"] }
 clap = { version = "4.0", features = [ "derive", "env"] }
 env_logger = { version = "0.9" }
