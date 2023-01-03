@@ -10,8 +10,8 @@ use std::time::Duration;
 use tokio::sync::Mutex;
 
 use sctp_rs::{
-    BindxFlags, ConnectedSocket, Listener, NotificationOrData, SendInfo, Socket,
-    SocketToAssociation,
+    BindxFlags, ConnectedSocket, Event, Listener, Notification, NotificationOrData, SendInfo,
+    Socket, SocketToAssociation, SubscribeEventAssocId,
 };
 
 const NGAP_SCTP_PORT: u16 = 38412;
@@ -32,12 +32,17 @@ impl Gnb {
 
         loop {
             let gnb = me.lock().await;
-            log::debug!("waiting: 1");
             let received = gnb.sock.sctp_recv().await?;
             match received {
-                NotificationOrData::Notification(notification) => {
-                    log::debug!("Received Notification: {:#?}", notification)
-                }
+                NotificationOrData::Notification(notification) => match notification {
+                    Notification::Shutdown(_) => {
+                        log::info!("Shutdown Event Received for GNB: {}", gnb.address);
+                        break Ok(());
+                    }
+                    _ => {
+                        log::debug!("Received Notification: {:#?}", notification);
+                    }
+                },
                 NotificationOrData::Data(data) => {
                     log::debug!("Received Data: {:#?}", data);
                     if data.payload.len() == 0 {
@@ -63,6 +68,19 @@ impl Gnb {
             send_info.sid,
             send_info.ppid
         );
+        let event = Event::Association;
+        let subscribe_assoc_id = SubscribeEventAssocId::All;
+
+        (*gnb)
+            .sock
+            .sctp_subscribe_event(event, subscribe_assoc_id)?;
+
+        let event = Event::Shutdown;
+        let subscribe_assoc_id = SubscribeEventAssocId::All;
+        (*gnb)
+            .sock
+            .sctp_subscribe_event(event, subscribe_assoc_id)?;
+
         (*gnb).sock.sctp_set_default_sendinfo(send_info)
     }
 }

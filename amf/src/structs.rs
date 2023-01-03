@@ -31,7 +31,7 @@ impl Amf {
     }
 
     pub async fn run(&mut self) -> std::io::Result<()> {
-        log::info!("Started");
+        log::info!("Started AMF");
 
         let ngap = Arc::clone(&self.ngap);
         let ngap_task: JoinHandle<_> = tokio::spawn(async move {
