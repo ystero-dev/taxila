@@ -1,8 +1,11 @@
 use std::net::IpAddr;
 
 use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc;
 
 use crate::ngap::NgapManager;
+
+pub(crate) struct AmfToNgapMsg;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct NgapConfig {
@@ -27,8 +30,9 @@ impl Amf {
     pub async fn run(self) -> std::io::Result<()> {
         log::info!("Started AMF");
 
+        let (amf_to_ngap_tx, amf_to_ngap_rx) = mpsc::channel(10);
         let ngap = NgapManager::from_config(&self.config.ngap)?;
-        let ngap_task = tokio::spawn(NgapManager::run(ngap));
+        let ngap_task = tokio::spawn(NgapManager::run(ngap, amf_to_ngap_rx));
         let _ = ngap_task.await;
 
         Ok(())

@@ -1,46 +1,46 @@
 pub(crate) mod messages;
 
+use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::Arc;
 
 use asn1_codecs::{aper::AperCodec, PerCodecData};
 
-use tokio::sync::{
-    mpsc::{self, Receiver, Sender},
-    Mutex,
-};
+use tokio::sync::mpsc::{self, Receiver, Sender};
 
 use sctp_rs::{
-    BindxFlags, ConnectedSocket, Event, Listener, Notification, NotificationOrData, ReceivedData,
-    SendInfo, Socket, SocketToAssociation, SubscribeEventAssocId,
+    AssociationId, BindxFlags, ConnectedSocket, Event, Listener, Notification, NotificationOrData,
+    ReceivedData, SendInfo, Socket, SocketToAssociation, SubscribeEventAssocId,
 };
 
 use messages::r17::NGAP_PDU;
+
+use crate::structs::AmfToNgapMsg;
+
+struct NgapToGnbMsg;
 
 const NGAP_SCTP_PORT: u16 = 38412;
 const NGAP_SCTP_PPID: u32 = 60;
 
 struct GnbConnection {
     sock: ConnectedSocket,
+    id: AssociationId,
     address: SocketAddr,
-    pdu_tx: Sender<ReceivedData>,
+    gnb_to_ngap_tx: Sender<ReceivedData>,
+    ngap_to_gnb_rx: Receiver<NgapToGnbMsg>,
 }
 
 impl GnbConnection {
-    async fn handle_new_connection(me: Arc<Mutex<Self>>) -> std::io::Result<()> {
-        // This block is required because the `MutexGuard` below otherwise would only be dropped
-        // 'after' the loop (that is never).
+    async fn handle_new_connection(self) -> std::io::Result<()> {
         log::info!("New Connection.");
 
-        Self::init_new_connection(&me).await?;
+        Self::init_new_connection(&self).await?;
 
         loop {
-            let gnb = me.lock().await;
-            let received = gnb.sock.sctp_recv().await?;
+            let received = self.sock.sctp_recv().await?;
             match received {
                 NotificationOrData::Notification(notification) => match notification {
                     Notification::Shutdown(_) => {
-                        log::info!("Shutdown Event Received for GNB: {}", gnb.address);
+                        log::info!("Shutdown Event Received for GNB: {}", self.address);
                         break Ok(());
                     }
                     _ => {
@@ -50,18 +50,17 @@ impl GnbConnection {
                 NotificationOrData::Data(data) => {
                     log::debug!("Received Data: {:#?}", data);
                     if data.payload.len() == 0 {
-                        log::info!("Remote end '{}' closed connection.", gnb.address);
+                        log::info!("Remote end '{}' closed connection.", self.address);
                         break Ok(());
                     } else {
-                        gnb.pdu_tx.send(data).await;
+                        self.gnb_to_ngap_tx.send(data).await;
                     }
                 }
             }
         }
     }
 
-    async fn init_new_connection(me: &Arc<Mutex<Self>>) -> std::io::Result<()> {
-        let gnb = me.lock().await;
+    async fn init_new_connection(&self) -> std::io::Result<()> {
         let send_info = SendInfo {
             sid: 0, // Always use 'Stream ID' of '0' for the Non-UE signaling.
             ppid: NGAP_SCTP_PPID,
@@ -74,30 +73,26 @@ impl GnbConnection {
             send_info.sid,
             send_info.ppid
         );
+
         let event = Event::Association;
         let subscribe_assoc_id = SubscribeEventAssocId::All;
-
-        (*gnb)
-            .sock
-            .sctp_subscribe_event(event, subscribe_assoc_id)?;
+        self.sock.sctp_subscribe_event(event, subscribe_assoc_id)?;
 
         let event = Event::Shutdown;
         let subscribe_assoc_id = SubscribeEventAssocId::All;
-        (*gnb)
-            .sock
-            .sctp_subscribe_event(event, subscribe_assoc_id)?;
+        self.sock.sctp_subscribe_event(event, subscribe_assoc_id)?;
 
-        (*gnb).sock.sctp_set_default_sendinfo(send_info)
+        self.sock.sctp_set_default_sendinfo(send_info)
     }
 }
 
 pub struct NgapManager {
     socket: Listener,
-    peers: Vec<Arc<Mutex<GnbConnection>>>,
+    gnb_connections: HashMap<AssociationId, Sender<NgapToGnbMsg>>,
 }
 
 impl NgapManager {
-    pub fn from_config(config: &crate::structs::NgapConfig) -> std::io::Result<Self> {
+    pub(crate) fn from_config(config: &crate::structs::NgapConfig) -> std::io::Result<Self> {
         let socket = Socket::new_v6(SocketToAssociation::OneToOne)?;
 
         let port = if config.port.is_some() {
@@ -119,52 +114,54 @@ impl NgapManager {
 
         Ok(Self {
             socket,
-            peers: vec![],
+            gnb_connections: HashMap::new(),
         })
     }
 
-    pub async fn run(mut self) -> std::io::Result<()> {
+    pub(crate) async fn run(
+        mut self,
+        mut amf_to_ngap_rx: Receiver<AmfToNgapMsg>,
+    ) -> std::io::Result<()> {
         let (tx, mut rx) = mpsc::channel::<ReceivedData>(10);
         loop {
             let _ = tokio::select! {
                 accepted = self.socket.accept() => {
                     let (accepted, client_addr) = accepted?;
-                    let gnb = Arc::new(Mutex::new(GnbConnection {
+                    let conn_status = accepted.sctp_get_status(0)?;
+
+                    let (ngap_to_gnb_tx, ngap_to_gnb_rx) = mpsc::channel(10);
+
+                    let gnb_connection = GnbConnection {
+                        id: conn_status.assoc_id,
                         sock: accepted,
                         address: client_addr,
-                        pdu_tx: tx.clone(),
-                    }));
+                        gnb_to_ngap_tx: tx.clone(),
+                        ngap_to_gnb_rx
+                    };
 
-                    self.peers.push(Arc::clone(&gnb));
+                    //self.peers.push(Arc::clone(&gnb));
+                    self.gnb_connections.insert(conn_status.assoc_id, ngap_to_gnb_tx);
 
                     // Accepted a Socket, this is always from one gNB.
                     // TODO: Join on this task?
                     log::info!("Spawning New Task for GNB: {}.", client_addr);
-                    let _ = tokio::spawn(async move {
-                        // TODO: Not sure what to do with the error?
-
-                        let _ = GnbConnection::handle_new_connection(gnb).await;
-                    });
+                    let _ = tokio::spawn(
+                        GnbConnection::handle_new_connection(gnb_connection)
+                    );
                     log::debug!("spawned task!");
                 }
-                // pdu_rx is Some
-                received = rx.recv() => {
-                    match received {
-                        Some(data) => {
-                            let mut codec_data = PerCodecData::from_slice_aper(&data.payload);
+                Some(recvd_data) = rx.recv() => {
+                            let mut codec_data = PerCodecData::from_slice_aper(&recvd_data.payload);
                             let pdu = NGAP_PDU::aper_decode(&mut codec_data).unwrap();
                             log::info!("Received PDU: {:#?}", pdu);
 
-                        }
-                        None => {
-                            log::info!("Received None on the channel, all senders closed.");
-                        }
-                    }
+                }
+                Some(_amf_data) = amf_to_ngap_rx.recv() => {
+                    log::debug!("Data Received from AMF.");
+                    break Ok(());
                 }
             };
             log::debug!("select loop completed..");
         }
-
-        Ok(())
     }
 }
