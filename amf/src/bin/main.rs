@@ -31,7 +31,7 @@ async fn main() -> std::io::Result<()> {
     let amf_config = serde_yaml::from_str(config)
         .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "config parse error"))?;
 
-    let mut amf = taxila_amf::Amf::from_config(&amf_config)?;
+    let amf = taxila_amf::Amf::from_config(amf_config)?;
 
     amf.run().await
 }

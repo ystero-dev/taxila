@@ -1,10 +1,7 @@
 pub(crate) mod messages;
 
 use std::net::SocketAddr;
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
-};
+use std::sync::Arc;
 
 use asn1_codecs::{aper::AperCodec, PerCodecData};
 
@@ -97,7 +94,6 @@ impl GnbConnection {
 pub struct NgapManager {
     socket: Listener,
     peers: Vec<Arc<Mutex<GnbConnection>>>,
-    should_stop: AtomicBool,
 }
 
 impl NgapManager {
@@ -124,19 +120,14 @@ impl NgapManager {
         Ok(Self {
             socket,
             peers: vec![],
-            should_stop: AtomicBool::new(false),
         })
     }
 
-    pub async fn run(me: Arc<Mutex<Self>>) -> std::io::Result<()> {
-        let mut ngap = me.lock().await;
+    pub async fn run(mut self) -> std::io::Result<()> {
         let (tx, mut rx) = mpsc::channel::<ReceivedData>(10);
         loop {
-            if *(*ngap).should_stop.get_mut() {
-                break;
-            }
             let _ = tokio::select! {
-                accepted = (*ngap).socket.accept() => {
+                accepted = self.socket.accept() => {
                     let (accepted, client_addr) = accepted?;
                     let gnb = Arc::new(Mutex::new(GnbConnection {
                         sock: accepted,
@@ -144,7 +135,7 @@ impl NgapManager {
                         pdu_tx: tx.clone(),
                     }));
 
-                    (*ngap).peers.push(Arc::clone(&gnb));
+                    self.peers.push(Arc::clone(&gnb));
 
                     // Accepted a Socket, this is always from one gNB.
                     // TODO: Join on this task?
@@ -171,12 +162,9 @@ impl NgapManager {
                     }
                 }
             };
+            log::debug!("select loop completed..");
         }
 
         Ok(())
-    }
-
-    pub(crate) fn stop(&mut self) {
-        self.should_stop.store(false, Ordering::Relaxed);
     }
 }
