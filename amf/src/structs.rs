@@ -30,7 +30,7 @@ impl Amf {
     pub async fn run(self) -> std::io::Result<()> {
         log::info!("Started AMF");
 
-        let (amf_to_ngap_tx, amf_to_ngap_rx) = mpsc::channel(10);
+        let (_amf_to_ngap_tx, amf_to_ngap_rx) = mpsc::channel(10);
         let ngap = NgapManager::from_config(&self.config.ngap)?;
         let ngap_task = tokio::spawn(NgapManager::run(ngap, amf_to_ngap_rx));
         let _ = ngap_task.await;

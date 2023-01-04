@@ -23,40 +23,49 @@ const NGAP_SCTP_PPID: u32 = 60;
 
 struct GnbConnection {
     sock: ConnectedSocket,
-    id: AssociationId,
+    _id: AssociationId,
     address: SocketAddr,
     gnb_to_ngap_tx: Sender<ReceivedData>,
     ngap_to_gnb_rx: Receiver<NgapToGnbMsg>,
 }
 
 impl GnbConnection {
-    async fn handle_new_connection(self) -> std::io::Result<()> {
+    async fn handle_new_connection(mut self) -> std::io::Result<()> {
         log::info!("New Connection.");
 
         Self::init_new_connection(&self).await?;
 
         loop {
-            let received = self.sock.sctp_recv().await?;
-            match received {
-                NotificationOrData::Notification(notification) => match notification {
-                    Notification::Shutdown(_) => {
-                        log::info!("Shutdown Event Received for GNB: {}", self.address);
-                        break Ok(());
-                    }
-                    _ => {
-                        log::debug!("Received Notification: {:#?}", notification);
-                    }
-                },
-                NotificationOrData::Data(data) => {
-                    log::debug!("Received Data: {:#?}", data);
-                    if data.payload.len() == 0 {
-                        log::info!("Remote end '{}' closed connection.", self.address);
-                        break Ok(());
-                    } else {
-                        self.gnb_to_ngap_tx.send(data).await;
+            tokio::select! {
+
+                _ = self.ngap_to_gnb_rx.recv() => {
+
+                }
+
+                received = self.sock.sctp_recv() => {
+                    let received = received?;
+                    match received {
+                        NotificationOrData::Notification(notification) => match notification {
+                            Notification::Shutdown(_) => {
+                                log::info!("Shutdown Event Received for GNB: {}", self.address);
+                                break Ok(());
+                            }
+                            _ => {
+                                log::debug!("Received Notification: {:#?}", notification);
+                            }
+                        },
+                        NotificationOrData::Data(data) => {
+                            log::debug!("Received Data: {:#?}", data);
+                            if data.payload.len() == 0 {
+                                log::info!("Remote end '{}' closed connection.", self.address);
+                                break Ok(());
+                            } else {
+                                let _ = self.gnb_to_ngap_tx.send(data).await;
+                            }
+                        }
                     }
                 }
-            }
+            };
         }
     }
 
@@ -86,7 +95,17 @@ impl GnbConnection {
     }
 }
 
-pub struct NgapManager {
+// NgapManager: Is a struct that connects the `NGAP` messages received from the `GNB` to the `AMF`
+// processing. The encoding and decoding of the NGAP PDUs is performed by this structure.
+//
+// Whenever a new connection arrives on the listening socket, `NgapManager` spawns a task for
+// processing the connection. A Map of 'AssociationId' -> 'Sender' (channel Sender) is maintained
+// by the NgapManager. Whenever a message is received from the 'Amf', it will have a header
+// containing the `AssociationID`, which determines the channel to be used  for sending the message
+// to the 'GNB'. A message with `AssociationID` of '0' is a special control message. 'AMF' will use
+// this ID for sending Control messages to 'NgapManager'. Such control messages can be used for
+// performing graceful shutdown etc.
+pub(crate) struct NgapManager {
     socket: Listener,
     gnb_connections: HashMap<AssociationId, Sender<NgapToGnbMsg>>,
 }
@@ -123,6 +142,7 @@ impl NgapManager {
         mut amf_to_ngap_rx: Receiver<AmfToNgapMsg>,
     ) -> std::io::Result<()> {
         let (tx, mut rx) = mpsc::channel::<ReceivedData>(10);
+        let mut tasks = vec![];
         loop {
             let _ = tokio::select! {
                 accepted = self.socket.accept() => {
@@ -132,21 +152,18 @@ impl NgapManager {
                     let (ngap_to_gnb_tx, ngap_to_gnb_rx) = mpsc::channel(10);
 
                     let gnb_connection = GnbConnection {
-                        id: conn_status.assoc_id,
+                        _id: conn_status.assoc_id,
                         sock: accepted,
                         address: client_addr,
                         gnb_to_ngap_tx: tx.clone(),
                         ngap_to_gnb_rx
                     };
 
-                    //self.peers.push(Arc::clone(&gnb));
                     self.gnb_connections.insert(conn_status.assoc_id, ngap_to_gnb_tx);
 
-                    // Accepted a Socket, this is always from one gNB.
-                    // TODO: Join on this task?
                     log::info!("Spawning New Task for GNB: {}.", client_addr);
-                    let _ = tokio::spawn(
-                        GnbConnection::handle_new_connection(gnb_connection)
+                    tasks.push(tokio::spawn(
+                        GnbConnection::handle_new_connection(gnb_connection))
                     );
                     log::debug!("spawned task!");
                 }
@@ -158,10 +175,14 @@ impl NgapManager {
                 }
                 Some(_amf_data) = amf_to_ngap_rx.recv() => {
                     log::debug!("Data Received from AMF.");
-                    break Ok(());
+                    break ;
                 }
             };
             log::debug!("select loop completed..");
         }
+
+        futures::future::join_all(tasks).await;
+
+        Ok(())
     }
 }
