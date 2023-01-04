@@ -6,6 +6,7 @@ use asn1_compiler::{
     Asn1Compiler,
 };
 
+// Generates Rust structures from the ASN.1 specification for NGAP Messages.
 fn main() -> std::io::Result<()> {
     println!("cargo:rerun-if-changed=specs/ngap.asn");
     let module = "ngap.rs";
