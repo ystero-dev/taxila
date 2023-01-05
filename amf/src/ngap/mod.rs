@@ -65,7 +65,7 @@ impl GnbConnection {
                         }
                     }
                 }
-            };
+            }
         }
     }
 
@@ -83,13 +83,10 @@ impl GnbConnection {
             send_info.ppid
         );
 
-        let event = Event::Association;
+        let events = &[Event::Association, Event::Shutdown];
         let subscribe_assoc_id = SubscribeEventAssocId::All;
-        self.sock.sctp_subscribe_event(event, subscribe_assoc_id)?;
-
-        let event = Event::Shutdown;
-        let subscribe_assoc_id = SubscribeEventAssocId::All;
-        self.sock.sctp_subscribe_event(event, subscribe_assoc_id)?;
+        self.sock
+            .sctp_subscribe_events(events, subscribe_assoc_id)?;
 
         self.sock.sctp_set_default_sendinfo(send_info)
     }
@@ -144,7 +141,7 @@ impl NgapManager {
         let (tx, mut rx) = mpsc::channel::<ReceivedData>(10);
         let mut tasks = vec![];
         loop {
-            let _ = tokio::select! {
+            tokio::select! {
                 accepted = self.socket.accept() => {
                     let (accepted, client_addr) = accepted?;
                     let conn_status = accepted.sctp_get_status(0)?;
@@ -161,14 +158,19 @@ impl NgapManager {
 
                     self.gnb_connections.insert(conn_status.assoc_id, ngap_to_gnb_tx);
 
-                    log::info!("Spawning New Task for GNB: {}.", client_addr);
+                    log::info!(
+                        "Spawning New Task for GNB: (Association:{}, ClientAddress: {}).",
+                        conn_status.assoc_id,
+                        client_addr
+                    );
                     tasks.push(tokio::spawn(
                         GnbConnection::handle_new_connection(gnb_connection))
                     );
                     log::debug!("spawned task!");
                 }
                 Some(recvd_data) = rx.recv() => {
-                            let mut codec_data = PerCodecData::from_slice_aper(&recvd_data.payload);
+                            let mut codec_data =
+                                PerCodecData::from_slice_aper(&recvd_data.payload);
                             let pdu = NGAP_PDU::aper_decode(&mut codec_data).unwrap();
                             log::info!("Received PDU: {:#?}", pdu);
 
@@ -177,7 +179,7 @@ impl NgapManager {
                     log::debug!("Data Received from AMF.");
                     break ;
                 }
-            };
+            }
             log::debug!("select loop completed..");
         }
 
