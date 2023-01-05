@@ -9,24 +9,25 @@ use tokio::sync::mpsc::{self, Receiver, Sender};
 
 use sctp_rs::{
     AssociationId, BindxFlags, ConnectedSocket, Event, Listener, Notification, NotificationOrData,
-    ReceivedData, SendInfo, Socket, SocketToAssociation, SubscribeEventAssocId,
+    SendInfo, Socket, SocketToAssociation, SubscribeEventAssocId,
 };
 
 use messages::r17::NGAP_PDU;
 
-use crate::structs::AmfToNgapMsg;
-
-struct NgapToGnbMsg;
+use crate::messages::{
+    AmfToNgapMessage, GnbToNgapMessage, NgapToAmfMessage, NgapToGnbMessage, PDUMessage,
+    ReceivedDataMessage,
+};
 
 const NGAP_SCTP_PORT: u16 = 38412;
 const NGAP_SCTP_PPID: u32 = 60;
 
 struct GnbConnection {
     sock: ConnectedSocket,
-    _id: AssociationId,
+    id: AssociationId,
     address: SocketAddr,
-    gnb_to_ngap_tx: Sender<ReceivedData>,
-    ngap_to_gnb_rx: Receiver<NgapToGnbMsg>,
+    gnb_to_ngap_tx: Sender<GnbToNgapMessage>,
+    ngap_to_gnb_rx: Receiver<NgapToGnbMessage>,
 }
 
 impl GnbConnection {
@@ -60,7 +61,12 @@ impl GnbConnection {
                                 log::info!("Remote end '{}' closed connection.", self.address);
                                 break Ok(());
                             } else {
-                                let _ = self.gnb_to_ngap_tx.send(data).await;
+                                let msg = GnbToNgapMessage::ReceivedData(
+                                    ReceivedDataMessage {
+                                        id: self.id,
+                                        rxdata: data
+                                });
+                                let _ = self.gnb_to_ngap_tx.send(msg).await;
                             }
                         }
                     }
@@ -104,7 +110,7 @@ impl GnbConnection {
 // performing graceful shutdown etc.
 pub(crate) struct NgapManager {
     socket: Listener,
-    gnb_connections: HashMap<AssociationId, Sender<NgapToGnbMsg>>,
+    gnb_connections: HashMap<AssociationId, Sender<NgapToGnbMessage>>,
 }
 
 impl NgapManager {
@@ -136,9 +142,10 @@ impl NgapManager {
 
     pub(crate) async fn run(
         mut self,
-        mut amf_to_ngap_rx: Receiver<AmfToNgapMsg>,
+        mut amf_to_ngap_rx: Receiver<AmfToNgapMessage>,
+        mut ngap_to_amf_tx: Sender<NgapToAmfMessage>,
     ) -> std::io::Result<()> {
-        let (tx, mut rx) = mpsc::channel::<ReceivedData>(10);
+        let (tx, mut rx) = mpsc::channel::<GnbToNgapMessage>(10);
         let mut tasks = vec![];
         loop {
             tokio::select! {
@@ -149,7 +156,7 @@ impl NgapManager {
                     let (ngap_to_gnb_tx, ngap_to_gnb_rx) = mpsc::channel(10);
 
                     let gnb_connection = GnbConnection {
-                        _id: conn_status.assoc_id,
+                        id: conn_status.assoc_id,
                         sock: accepted,
                         address: client_addr,
                         gnb_to_ngap_tx: tx.clone(),
@@ -168,12 +175,17 @@ impl NgapManager {
                     );
                     log::debug!("spawned task!");
                 }
-                Some(recvd_data) = rx.recv() => {
-                            let mut codec_data =
-                                PerCodecData::from_slice_aper(&recvd_data.payload);
-                            let pdu = NGAP_PDU::aper_decode(&mut codec_data).unwrap();
-                            log::info!("Received PDU: {:#?}", pdu);
-
+                Some(GnbToNgapMessage::ReceivedData(
+                        ReceivedDataMessage { id, rxdata}
+                    )) = rx.recv() => {
+                    let mut codec_data =
+                    PerCodecData::from_slice_aper(&rxdata.payload);
+                    let pdu = NGAP_PDU::aper_decode(&mut codec_data).unwrap();
+                    let txmsg = NgapToAmfMessage::PDU(PDUMessage { id, pdu });
+                    let result = ngap_to_amf_tx.send(txmsg).await;
+                    if result.is_err() {
+                        log::error!("NGAP->AMF: {:#?}", result.err().unwrap());
+                    }
                 }
                 Some(_amf_data) = amf_to_ngap_rx.recv() => {
                     log::debug!("Data Received from AMF.");
