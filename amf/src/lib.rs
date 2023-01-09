@@ -1,6 +1,6 @@
 mod ngap;
 
-mod structs;
-pub use structs::Amf;
+mod amf;
+pub use amf::structs::Amf;
 
 mod messages;

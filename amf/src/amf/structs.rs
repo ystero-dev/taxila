@@ -6,12 +6,8 @@ use serde::{
 };
 use tokio::sync::mpsc;
 
-use sctp_rs::AssociationId;
+use crate::ngap::messages::r17::NGAP_PDU;
 
-use crate::ngap::messages::r17::{
-    InitiatingMessage, InitiatingMessageValue, NGSetupRequest, SuccessfulOutcome,
-    UnsuccessfulOutcome, NGAP_PDU,
-};
 use crate::ngap::NgapManager;
 
 use crate::messages::{NgapToAmfMessage, PDUMessage};
@@ -129,26 +125,6 @@ impl Amf {
             }
         }
     }
-
-    fn process_initiating_message(&self, id: AssociationId, init: InitiatingMessage) {
-        match init.value {
-            InitiatingMessageValue::Id_NGSetup(ng_setup_req) => {
-                self.process_ng_setup_request(id, ng_setup_req)
-            }
-            _ => (),
-        }
-    }
-
-    fn process_ng_setup_request(&self, id: AssociationId, ngsetup: NGSetupRequest) {
-        log::info!(
-            "Received from AssociationID: {}, NGSetupRequest: {:#?}",
-            id,
-            ngsetup,
-        );
-    }
-
-    fn process_successful_outcome(&self, id: AssociationId, success: SuccessfulOutcome) {}
-    fn process_unsuccessful_outcome(&self, id: AssociationId, failure: UnsuccessfulOutcome) {}
 }
 
 #[cfg(test)]
@@ -158,7 +134,8 @@ mod tests {
     fn works() {
         let config_str =
             "ngap:\n addrs:\n - 127.0.0.1 \n - ::1 \nport: 38413\nplmn:\n mcc: 999\n mnc: 99\ntac: [ 1, 2, 3]\namf_id:\n pointer: 63\n set: 10\n region: 1\n";
-        let amf_config: Result<crate::structs::AmfConfig, _> = serde_yaml::from_str(config_str);
+        let amf_config: Result<crate::amf::structs::AmfConfig, _> =
+            serde_yaml::from_str(config_str);
         assert!(amf_config.is_ok(), "{:#?}", amf_config.err().unwrap());
     }
 }

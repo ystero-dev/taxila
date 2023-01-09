@@ -93,7 +93,7 @@ impl GnbConnection {
         let subscribe_assoc_id = SubscribeEventAssocId::All;
         self.sock
             .sctp_subscribe_events(events, subscribe_assoc_id)?;
-
+        self.sock.sctp_request_rcvinfo(true)?;
         self.sock.sctp_set_default_sendinfo(send_info)
     }
 }
@@ -114,7 +114,7 @@ pub(crate) struct NgapManager {
 }
 
 impl NgapManager {
-    pub(crate) fn from_config(config: &crate::structs::NgapConfig) -> std::io::Result<Self> {
+    pub(crate) fn from_config(config: &crate::amf::structs::NgapConfig) -> std::io::Result<Self> {
         let socket = Socket::new_v6(SocketToAssociation::OneToOne)?;
 
         let port = if config.port.is_some() {
@@ -125,7 +125,11 @@ impl NgapManager {
 
         let mut bind_addrs = vec![];
         for addr in &config.addrs {
-            let bind_addr = format!("{}:{}", addr, port).parse().unwrap();
+            let bind_addr = if addr.is_ipv6() {
+                format!("[{}]:{}", addr, port).parse().unwrap()
+            } else {
+                format!("{}:{}", addr, port).parse().unwrap()
+            };
             bind_addrs.push(bind_addr);
         }
 
