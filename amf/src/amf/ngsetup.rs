@@ -1,12 +1,12 @@
 use sctp_rs::AssociationId;
 
-use crate::ngap::messages::r17::NGSetupRequest;
+use ngap::messages::r17::NGSetupRequest;
 
 use super::structs::Amf;
 
 impl Amf {
     pub(super) fn process_ng_setup_request(&self, id: AssociationId, ngsetup: NGSetupRequest) {
-        use crate::ngap::messages::r17::NGSetupRequestProtocolIEs_EntryValue as IEValue;
+        use ngap::messages::r17::NGSetupRequestProtocolIEs_EntryValue as IEValue;
 
         log::info!(
             "Received from AssociationID: {}, NGSetupRequest: {:#?}",

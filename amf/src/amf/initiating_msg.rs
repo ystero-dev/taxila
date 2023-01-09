@@ -1,6 +1,6 @@
 use sctp_rs::AssociationId;
 
-use crate::ngap::messages::r17::{InitiatingMessage, InitiatingMessageValue};
+use ngap::messages::r17::{InitiatingMessage, InitiatingMessageValue};
 
 use super::structs::Amf;
 

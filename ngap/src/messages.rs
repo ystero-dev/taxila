@@ -2,7 +2,7 @@
 
 use std::convert::TryInto;
 
-pub(crate) mod r17 {
+pub mod r17 {
     // TODO: Include the output of `build.rs` here.
     include!(concat!(env!("OUT_DIR"), "/ngap.rs"));
 }
@@ -10,7 +10,7 @@ pub(crate) mod r17 {
 use r17::PLMNIdentity;
 
 impl PLMNIdentity {
-    pub(crate) fn from_mcc_mnc(mcc: u16, mnc: u16) -> Self {
+    pub fn from_mcc_mnc(mcc: u16, mnc: u16) -> Self {
         let mcc3 = mcc % 10;
         let mcc2 = (mcc % 100) / 10;
         let mcc1 = (mcc % 1000) / 100;

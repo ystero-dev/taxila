@@ -1,6 +1,6 @@
 use sctp_rs::AssociationId;
 
-use crate::ngap::messages::r17::UnsuccessfulOutcome;
+use ngap::messages::r17::UnsuccessfulOutcome;
 
 use super::structs::Amf;
 

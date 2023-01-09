@@ -1,6 +1,7 @@
 //! Message Definitions for Messages sent by Individual Tasks
 
-use crate::ngap::messages::r17::NGAP_PDU;
+use ngap::messages::r17::NGAP_PDU;
+
 use sctp_rs::{AssociationId, ReceivedData};
 
 // Message sent by NGAP Task to AMF

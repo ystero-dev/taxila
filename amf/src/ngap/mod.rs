@@ -1,5 +1,3 @@
-pub(crate) mod messages;
-
 use std::collections::HashMap;
 use std::net::SocketAddr;
 
@@ -12,7 +10,7 @@ use sctp_rs::{
     SendInfo, Socket, SocketToAssociation, SubscribeEventAssocId,
 };
 
-use messages::r17::NGAP_PDU;
+use ngap::messages::r17::NGAP_PDU;
 
 use crate::messages::{
     AmfToNgapMessage, GnbToNgapMessage, NgapToAmfMessage, NgapToGnbMessage, PDUMessage,

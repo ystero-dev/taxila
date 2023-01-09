@@ -6,7 +6,7 @@ use serde::{
 };
 use tokio::sync::mpsc;
 
-use crate::ngap::messages::r17::NGAP_PDU;
+use ngap::messages::r17::NGAP_PDU;
 
 use crate::ngap::NgapManager;
 
