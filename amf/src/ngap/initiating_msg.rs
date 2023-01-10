@@ -2,9 +2,9 @@ use sctp_rs::AssociationId;
 
 use ngap::messages::r17::{InitiatingMessage, InitiatingMessageValue};
 
-use super::structs::Amf;
+use super::structs::NgapManager;
 
-impl Amf {
+impl NgapManager {
     pub(super) fn process_initiating_message(&self, id: AssociationId, init: InitiatingMessage) {
         match init.value {
             InitiatingMessageValue::Id_NGSetup(ng_setup_req) => {

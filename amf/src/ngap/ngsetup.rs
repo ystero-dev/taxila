@@ -2,9 +2,9 @@ use sctp_rs::AssociationId;
 
 use ngap::messages::r17::NGSetupRequest;
 
-use super::structs::Amf;
+use super::structs::NgapManager;
 
-impl Amf {
+impl NgapManager {
     pub(super) fn process_ng_setup_request(&self, id: AssociationId, ngsetup: NGSetupRequest) {
         use ngap::messages::r17::NGSetupRequestProtocolIEs_EntryValue as IEValue;
 

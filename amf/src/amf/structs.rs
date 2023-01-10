@@ -8,7 +8,7 @@ use tokio::sync::mpsc;
 
 use ngap::messages::r17::NGAP_PDU;
 
-use crate::ngap::NgapManager;
+use crate::ngap::structs::NgapManager;
 
 use crate::messages::{NgapToAmfMessage, PDUMessage};
 
@@ -114,17 +114,7 @@ impl Amf {
 }
 
 impl Amf {
-    fn process_ngap_pdu_message(&self, msg: PDUMessage) {
-        match msg.pdu {
-            NGAP_PDU::InitiatingMessage(init) => self.process_initiating_message(msg.id, init),
-            NGAP_PDU::SuccessfulOutcome(success) => {
-                self.process_successful_outcome(msg.id, success)
-            }
-            NGAP_PDU::UnsuccessfulOutcome(failure) => {
-                self.process_unsuccessful_outcome(msg.id, failure)
-            }
-        }
-    }
+    fn process_ngap_pdu_message(&self, _msg: PDUMessage) {}
 }
 
 #[cfg(test)]
