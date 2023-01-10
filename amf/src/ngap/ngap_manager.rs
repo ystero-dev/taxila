@@ -29,7 +29,7 @@ const NGAP_SCTP_PORT: u16 = 38412;
 // this ID for sending Control messages to 'NgapManager'. Such control messages can be used for
 // performing graceful shutdown etc.
 pub(crate) struct NgapManager {
-    config: AmfConfig,
+    pub(crate) config: AmfConfig,
     socket: Listener,
     ran_connections: HashMap<AssociationId, Sender<NgapMgrToRanConnMessage>>,
 }

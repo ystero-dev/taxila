@@ -28,7 +28,7 @@ async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env);
 
     let config =
-            "ngap:\n addrs:\n - 127.0.0.1\n - ::1 \n port: 38412\nplmn:\n mcc: 999\n mnc: 99\ntac: [ 1, 2, 3]\namf_id:\n pointer: 63\n set: 10\n region: 1\n";
+            "ngap:\n addrs:\n - 127.0.0.1\n - ::1 \n port: 38412\nplmn:\n mcc: 901\n mnc: 70\ntac: [ 1, 2000, 3]\namf_id:\n pointer: 63\n set: 10\n region: 1\n";
     let amf_config = serde_yaml::from_str(config)
         .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "config parse error"))?;
 
