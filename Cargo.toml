@@ -2,4 +2,5 @@
 members = [
 	"amf",
 	"ngap",
+	"openapi",
 ]
