@@ -2,7 +2,7 @@ use sctp_rs::AssociationId;
 
 use ngap::messages::r17::{InitiatingMessage, InitiatingMessageValue};
 
-use super::structs::NgapManager;
+use super::ngap_manager::NgapManager;
 
 impl NgapManager {
     pub(super) fn process_initiating_message(&self, id: AssociationId, init: InitiatingMessage) {

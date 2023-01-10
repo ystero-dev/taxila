@@ -6,11 +6,9 @@ use serde::{
 };
 use tokio::sync::mpsc;
 
-use ngap::messages::r17::NGAP_PDU;
+use crate::ngap::ngap_manager::NgapManager;
 
-use crate::ngap::structs::NgapManager;
-
-use crate::messages::{NgapToAmfMessage, PDUMessage};
+use crate::messages::NgapToAmfMessage;
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(remote = "Self")]
@@ -91,30 +89,19 @@ impl Amf {
     pub async fn run(self) -> std::io::Result<()> {
         log::info!("Started AMF");
 
-        let (amf_to_ngap_tx, amf_to_ngap_rx) = mpsc::channel(10);
+        let (_amf_to_ngap_tx, amf_to_ngap_rx) = mpsc::channel(10);
         let (ngap_to_amf_tx, mut ngap_to_amf_rx) = mpsc::channel::<NgapToAmfMessage>(10);
 
         let ngap = NgapManager::from_config(&self.config.ngap)?;
-        let ngap_task = tokio::spawn(NgapManager::run(ngap, amf_to_ngap_rx, ngap_to_amf_tx));
+        let _ = tokio::spawn(NgapManager::run(ngap, amf_to_ngap_rx, ngap_to_amf_tx));
 
         loop {
             tokio::select! {
-                Some(msg) = ngap_to_amf_rx.recv() => {
-                    match msg {
-                        NgapToAmfMessage::PDU(pdu) => self.process_ngap_pdu_message(pdu),
-                    }
+                Some(_) = ngap_to_amf_rx.recv() => {
                 }
             }
         }
-
-        let _ = ngap_task.await;
-
-        Ok(())
     }
-}
-
-impl Amf {
-    fn process_ngap_pdu_message(&self, _msg: PDUMessage) {}
 }
 
 #[cfg(test)]

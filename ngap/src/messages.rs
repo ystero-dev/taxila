@@ -1,4 +1,9 @@
-#![allow(dead_code, unreachable_patterns, non_camel_case_types)]
+#![allow(
+    dead_code,
+    unreachable_patterns,
+    non_camel_case_types,
+    clippy::large_enum_variant
+)]
 
 use std::convert::TryInto;
 

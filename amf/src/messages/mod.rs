@@ -1,24 +1,14 @@
 //! Message Definitions for Messages sent by Individual Tasks
 
-use ngap::messages::r17::NGAP_PDU;
-
 use sctp_rs::{AssociationId, ReceivedData};
 
 // Message sent by NGAP Task to AMF
 #[derive(Debug)]
-pub(crate) enum NgapToAmfMessage {
-    PDU(PDUMessage),
-}
+pub(crate) enum NgapToAmfMessage {}
 
-#[derive(Debug)]
-pub(crate) struct PDUMessage {
-    pub(crate) id: AssociationId,
-    pub(crate) pdu: NGAP_PDU,
-}
-
-// Message sent to NGAP by GNB Connection Task
+// Message sent to NGAP by RAN Connection Task
 #[derive(Debug, Clone)]
-pub(crate) enum GnbToNgapMessage {
+pub(crate) enum RanConnToNgapMgrMessage {
     ReceivedData(ReceivedDataMessage),
 }
 
@@ -34,4 +24,4 @@ pub(crate) enum AmfToNgapMessage {}
 
 // Message sent to Gnb Connection task by NGAP Task.
 #[derive(Debug, Clone)]
-pub(crate) enum NgapToGnbMessage {}
+pub(crate) enum NgapMgrToRanConnMessage {}
