@@ -8,6 +8,7 @@ use sctp_rs::{AssociationId, BindxFlags, Listener, Socket, SocketToAssociation};
 
 use ngap::messages::r17::NGAP_PDU;
 
+use crate::config::AmfConfig;
 use crate::messages::{
     AmfToNgapMessage, NgapMgrToRanConnMessage, NgapToAmfMessage, RanConnToNgapMgrMessage,
     ReceivedDataMessage,
@@ -28,22 +29,23 @@ const NGAP_SCTP_PORT: u16 = 38412;
 // this ID for sending Control messages to 'NgapManager'. Such control messages can be used for
 // performing graceful shutdown etc.
 pub(crate) struct NgapManager {
+    config: AmfConfig,
     socket: Listener,
     ran_connections: HashMap<AssociationId, Sender<NgapMgrToRanConnMessage>>,
 }
 
 impl NgapManager {
-    pub(crate) fn from_config(config: &crate::amf::structs::NgapConfig) -> std::io::Result<Self> {
+    pub(crate) fn from_config(config: AmfConfig) -> std::io::Result<Self> {
         let socket = Socket::new_v6(SocketToAssociation::OneToOne)?;
 
-        let port = if config.port.is_some() {
-            config.port.unwrap()
+        let port = if config.ngap.port.is_some() {
+            config.ngap.port.unwrap()
         } else {
             NGAP_SCTP_PORT
         };
 
         let mut bind_addrs = vec![];
-        for addr in &config.addrs {
+        for addr in &config.ngap.addrs {
             let bind_addr = if addr.is_ipv6() {
                 format!("[{}]:{}", addr, port).parse().unwrap()
             } else {
@@ -58,6 +60,7 @@ impl NgapManager {
         let socket = socket.listen(100)?;
 
         Ok(Self {
+            config,
             socket,
             ran_connections: HashMap::new(),
         })
