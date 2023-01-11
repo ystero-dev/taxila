@@ -19,10 +19,9 @@ fn main() -> std::io::Result<()> {
 
     let mut compiler = Asn1Compiler::new(
         rs_module,
-        false,
         &Visibility::Public,
         vec![Codec::Aper],
-        vec![Derive::Debug, Derive::Serialize, Derive::Deserialize],
+        vec![Derive::All],
     );
 
     compiler.compile_files(&spec_files)?;

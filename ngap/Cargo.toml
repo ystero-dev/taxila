@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [build-dependencies]
-asn1-compiler = "0.5"
+asn1-compiler = "0.5.5"
 
 [dependencies]
 asn1-codecs = "0.5"
