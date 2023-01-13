@@ -70,6 +70,7 @@ pub struct AmfConfig {
     pub(crate) plmn: PlmnConfig,
     pub(crate) tac: Vec<u32>, // TODO: Validate Max value is 24 bit.
     pub(crate) amf_id: AmfIdConfig,
+    pub(crate) amf_name: String,
 }
 
 #[cfg(test)]
@@ -78,7 +79,7 @@ mod tests {
     #[test]
     fn works() {
         let config_str =
-            "ngap:\n addrs:\n - 127.0.0.1 \n - ::1 \nport: 38413\nplmn:\n mcc: 999\n mnc: 99\ntac: [ 1, 2, 3]\namf_id:\n pointer: 63\n set: 10\n region: 1\n";
+            "ngap:\n addrs:\n - 127.0.0.1 \n - ::1 \nport: 38413\nplmn:\n mcc: 999\n mnc: 99\ntac: [ 1, 2, 3]\namf_id:\n pointer: 63\n set: 10\n region: 1\namf_name: taxila-amf";
         let amf_config: Result<super::AmfConfig, _> = serde_yaml::from_str(config_str);
         assert!(amf_config.is_ok(), "{:#?}", amf_config.err().unwrap());
     }

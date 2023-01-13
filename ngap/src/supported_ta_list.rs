@@ -1,5 +1,6 @@
 use crate::messages::r17::TAC;
 
+// For testing whether a given TAC matches an integer.
 impl PartialEq<u32> for TAC {
     fn eq(&self, other: &u32) -> bool {
         other < &(1 << 24) && self.0.as_slice() == &other.to_be_bytes().as_slice()[1..]

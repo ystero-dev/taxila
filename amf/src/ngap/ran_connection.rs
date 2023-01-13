@@ -44,7 +44,13 @@ impl RanConnection {
         loop {
             tokio::select! {
 
-                _ = self.ngap_to_ranconn_rx.recv() => {
+                Some(msg) = self.ngap_to_ranconn_rx.recv() => {
+                    log::debug!("RanConnection: Message: {:#?}", msg);
+                    match msg {
+                        NgapMgrToRanConnMessage::SendData(m) =>  {
+                            self.sock.sctp_send(m.txdata).await?;
+                        }
+                    }
 
                 }
 

@@ -31,7 +31,7 @@ const NGAP_SCTP_PORT: u16 = 38412;
 pub(crate) struct NgapManager {
     pub(crate) config: AmfConfig,
     socket: Listener,
-    ran_connections: HashMap<AssociationId, Sender<NgapMgrToRanConnMessage>>,
+    pub(crate) ran_connections: HashMap<AssociationId, Sender<NgapMgrToRanConnMessage>>,
 }
 
 impl NgapManager {
@@ -108,7 +108,7 @@ impl NgapManager {
                     PerCodecData::from_slice_aper(&rxdata.payload);
                     let pdu = NGAP_PDU::aper_decode(&mut codec_data).unwrap();
                     match pdu {
-                        NGAP_PDU::InitiatingMessage(init) => self.process_initiating_message(id, init),
+                        NGAP_PDU::InitiatingMessage(init) => self.process_initiating_message(id, init).await,
                         NGAP_PDU::SuccessfulOutcome(success) => {
                             self.process_successful_outcome(id, success)
                         }

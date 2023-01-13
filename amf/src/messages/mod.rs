@@ -1,6 +1,6 @@
 //! Message Definitions for Messages sent by Individual Tasks
 
-use sctp_rs::{AssociationId, ReceivedData};
+use sctp_rs::{AssociationId, ReceivedData, SendData};
 
 // Message sent by NGAP Task to AMF
 #[derive(Debug)]
@@ -24,4 +24,12 @@ pub(crate) enum AmfToNgapMessage {}
 
 // Message sent to Gnb Connection task by NGAP Task.
 #[derive(Debug, Clone)]
-pub(crate) enum NgapMgrToRanConnMessage {}
+pub(crate) enum NgapMgrToRanConnMessage {
+    SendData(SendDataMessage),
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct SendDataMessage {
+    pub(crate) id: AssociationId,
+    pub(crate) txdata: SendData,
+}

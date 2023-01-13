@@ -3,6 +3,10 @@ use std::convert::TryInto;
 use crate::messages::r17::PLMNIdentity;
 
 impl PLMNIdentity {
+    /// Get a `PLMNIdentity` structure from the `mcc` and `mnc` values.
+    ///
+    /// This is a useful utility function to compare `PLMNIdentity` with the configured `MCC` and
+    /// `MNC` values.
     pub fn from_mcc_mnc(mcc: u16, mnc: u16) -> Self {
         let mcc3 = mcc % 10;
         let mcc2 = (mcc % 100) / 10;
