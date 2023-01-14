@@ -54,7 +54,7 @@ impl NgapManager {
                     ran_ta_supported = Self::any_tas_supported(
                         &supported_ta_list,
                         &self.config.plmn,
-                        &self.config.tac,
+                        &self.config.tacs,
                     );
                 }
                 RequestIEValue::Id_UERetentionInformation(_ue_retention_info) => {

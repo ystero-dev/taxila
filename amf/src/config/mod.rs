@@ -65,12 +65,34 @@ pub struct NgapConfig {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(remote = "Self")]
 pub struct AmfConfig {
     pub(crate) ngap: NgapConfig,
     pub(crate) plmn: PlmnConfig,
-    pub(crate) tac: Vec<u32>, // TODO: Validate Max value is 24 bit.
+    pub(crate) tacs: Vec<u32>, // TODO: Validate Max value is 24 bit.
     pub(crate) amf_id: AmfIdConfig,
     pub(crate) amf_name: String,
+}
+
+impl<'de> Deserialize<'de> for AmfConfig {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let this = Self::deserialize(deserializer)?;
+
+        let max_tac_value = (1u32 << 24) - 1;
+        for tac in &this.tacs {
+            if tac > &max_tac_value {
+                return Err(D::Error::custom(format!(
+                    "Max supported value for `tac` should be less than {}",
+                    max_tac_value + 1
+                )));
+            }
+        }
+
+        Ok(this)
+    }
 }
 
 #[cfg(test)]

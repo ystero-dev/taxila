@@ -14,7 +14,12 @@ impl Amf {
     }
 
     pub async fn run(self) -> std::io::Result<()> {
-        log::info!("Started AMF");
+        log::info!(
+            "Started AMF: PLMN: [MCC:({}), MNC:({})], TACs:{:?}",
+            self.config.plmn.mcc,
+            self.config.plmn.mnc,
+            self.config.tacs
+        );
 
         let (_amf_to_ngap_tx, amf_to_ngap_rx) = mpsc::channel(10);
         let (ngap_to_amf_tx, mut ngap_to_amf_rx) = mpsc::channel::<NgapToAmfMessage>(10);

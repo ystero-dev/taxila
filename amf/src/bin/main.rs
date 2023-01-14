@@ -1,3 +1,6 @@
+use std::fs::File;
+use std::io::Read;
+
 use clap::Parser;
 
 #[derive(Parser, Debug)]
@@ -27,10 +30,16 @@ async fn main() -> std::io::Result<()> {
     let env = env_logger::Env::default().filter_or("MY_LOG_LEVEL", level);
     env_logger::init_from_env(env);
 
-    let config =
-            "ngap:\n addrs:\n - 127.0.0.1\n - ::1 \n port: 38412\nplmn:\n mcc: 991\n mnc: 70\ntac: [ 1, 2000, 3]\namf_id:\n pointer: 63\n set: 10\n region: 1\namf_name: taxila-amf";
-    let amf_config = serde_yaml::from_str(config)
-        .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "config parse error"))?;
+    let mut config_file = File::open(cli.config)?;
+    let mut config = String::new();
+    config_file.read_to_string(&mut config)?;
+
+    let amf_config = serde_yaml::from_str(&config).map_err(|e| {
+        std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("config parse error. {}", e),
+        )
+    })?;
 
     let amf = taxila_amf::Amf::from_config(amf_config)?;
 
