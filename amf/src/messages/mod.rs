@@ -30,6 +30,6 @@ pub(crate) enum NgapMgrToRanConnMessage {
 
 #[derive(Debug, Clone)]
 pub(crate) struct SendDataMessage {
-    pub(crate) id: AssociationId,
+    pub(crate) _id: AssociationId,
     pub(crate) txdata: SendData,
 }

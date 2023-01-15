@@ -1,21 +1,38 @@
-use sctp_rs::{AssociationId, SendData};
+//! Handling of NGSetup Messages.
+//!
+//! This module deals with handling of `NGSetup` messages and sending appropriate response
+//! messages.
 
-use asn1_codecs::{aper::AperCodec, PerCodecData};
+use sctp_rs::AssociationId;
 
+// Common NGAP Types
 use ngap::messages::r17::{
-    AMFName, Cause, CauseMisc, CauseProtocol, Criticality, CriticalityDiagnostics, NGSetupFailure,
-    NGSetupFailureProtocolIEs, NGSetupFailureProtocolIEs_Entry,
-    NGSetupFailureProtocolIEs_EntryValue as FailureIE, NGSetupRequest,
-    NGSetupRequestProtocolIEs_EntryValue as RequestIEValue, NGSetupResponse,
-    NGSetupResponseProtocolIEs, NGSetupResponseProtocolIEs_Entry,
+    Criticality, ProcedureCode, ProtocolIE_ID, SuccessfulOutcome, SuccessfulOutcomeValue,
+    UnsuccessfulOutcome, UnsuccessfulOutcomeValue, ID_NG_SETUP, NGAP_PDU,
+};
+
+// Types related to NGSetupRequest
+use ngap::messages::r17::{
+    NGSetupRequest, NGSetupRequestProtocolIEs_EntryValue as RequestIEValue, SupportedTAList,
+};
+
+// Types related to NGSetupResponse
+use ngap::messages::r17::{
+    AMFName, NGSetupResponse, NGSetupResponseProtocolIEs, NGSetupResponseProtocolIEs_Entry,
     NGSetupResponseProtocolIEs_EntryValue as ResponseIEValue, PLMNIdentity, PLMNSupportItem,
-    PLMNSupportList, ProcedureCode, ProtocolIE_ID, RelativeAMFCapacity, ServedGUAMIItem,
-    ServedGUAMIList, SliceSupportItem, SliceSupportList, SuccessfulOutcome, SuccessfulOutcomeValue,
-    SupportedTAList, UnsuccessfulOutcome, UnsuccessfulOutcomeValue, GUAMI, NGAP_PDU, SST, S_NSSAI,
+    PLMNSupportList, RelativeAMFCapacity, ServedGUAMIItem, ServedGUAMIList, SliceSupportItem,
+    SliceSupportList, GUAMI, ID_AMF_NAME, ID_PLMN_SUPPORT_LIST, ID_RELATIVE_AMF_CAPACITY,
+    ID_SERVED_GUAMI_LIST, SST, S_NSSAI,
+};
+
+// Types related to NGSetupFailure
+use ngap::messages::r17::{
+    Cause, CauseMisc, CauseProtocol, CriticalityDiagnostics, NGSetupFailure,
+    NGSetupFailureProtocolIEs, NGSetupFailureProtocolIEs_Entry,
+    NGSetupFailureProtocolIEs_EntryValue as FailureIE, ID_CAUSE, ID_CRITICALITY_DIAGNOSTICS,
 };
 
 use crate::config::PlmnConfig;
-use crate::messages::{NgapMgrToRanConnMessage, SendDataMessage};
 
 use super::ngap_manager::NgapManager;
 
@@ -26,10 +43,11 @@ impl NgapManager {
         ngsetup: NGSetupRequest,
     ) {
         log::debug!(
-            "Received from AssociationID: {}, NGSetupRequest: {:#?}",
+            "Processing 'NgSetupRequest' received on AssociationID: {}",
             id,
-            ngsetup,
         );
+
+        log::trace!("Message: {:#?}", ngsetup);
 
         let mut global_rannode_id_present = false;
         let mut supported_ta_list_present = false;
@@ -64,12 +82,13 @@ impl NgapManager {
         }
         if !global_rannode_id_present || !supported_ta_list_present {
             log::error!("Missing Mandatory IEs with Criticality Reject, Sending Failure.");
-            self.send_ngsetup_failure(
-                id,
-                Cause::Protocol(CauseProtocol(CauseProtocol::ABSTRACT_SYNTAX_ERROR_REJECT)),
-                None,
-            )
-            .await;
+            return self
+                .send_ngsetup_failure(
+                    id,
+                    Cause::Protocol(CauseProtocol(CauseProtocol::ABSTRACT_SYNTAX_ERROR_REJECT)),
+                    None,
+                )
+                .await;
         }
 
         if !paging_drx_present {
@@ -79,23 +98,26 @@ impl NgapManager {
 
         if !ran_ta_supported {
             log::error!("None of the RAN TAs supported!");
-            self.send_ngsetup_failure(
-                id,
-                Cause::Misc(CauseMisc(CauseMisc::UNKNOWN_PLMN_OR_SNPN)),
-                None,
-            )
-            .await;
+            return self
+                .send_ngsetup_failure(
+                    id,
+                    Cause::Misc(CauseMisc(CauseMisc::UNKNOWN_PLMN_OR_SNPN)),
+                    None,
+                )
+                .await;
         }
 
         self.send_ngsetup_success(id).await;
     }
 
+    // If any of the RAN TAs received matches the configured TAs.
     pub(crate) fn any_tas_supported(
         ran_tas: &SupportedTAList,
         plmn: &PlmnConfig,
         tacs: &Vec<u32>,
     ) -> bool {
         log::debug!("Checking if Matching TAs found for current Config.");
+
         for tac in tacs {
             log::trace!("Checking for TAC: {}", tac);
             for supported_ta in &ran_tas.0 {
@@ -117,10 +139,13 @@ impl NgapManager {
             }
         }
 
+        log::debug!("No Matching TAs found!");
         false
     }
 
     async fn send_ngsetup_success(&self, id: AssociationId) {
+        log::debug!("Sending `NGSetupResponse` (Success).");
+
         // Prepare the NGSetup Success
         //
         // IEs first
@@ -128,7 +153,7 @@ impl NgapManager {
 
         // AMF Name
         let amf_name_ie = NGSetupResponseProtocolIEs_Entry {
-            id: ProtocolIE_ID(1), // TODO: ID_AMF_NAME when the const is made public
+            id: ProtocolIE_ID(ID_AMF_NAME),
             criticality: Criticality(Criticality::REJECT),
             value: ResponseIEValue::Id_AMFName(AMFName(self.config.amf_name.clone())),
         };
@@ -151,7 +176,7 @@ impl NgapManager {
         guamis.push(served_guami_item);
 
         let served_guami_list_ie = NGSetupResponseProtocolIEs_Entry {
-            id: ProtocolIE_ID(96), // TODO: ID_GUAMI when the const is available.
+            id: ProtocolIE_ID(ID_SERVED_GUAMI_LIST),
             criticality: Criticality(Criticality::REJECT),
             value: ResponseIEValue::Id_ServedGUAMIList(ServedGUAMIList(guamis)),
         };
@@ -178,7 +203,7 @@ impl NgapManager {
         };
         plmns.push(plmn_support_item);
         let plmn_support_ie = NGSetupResponseProtocolIEs_Entry {
-            id: ProtocolIE_ID(80), // TODO: ID_PLMN_SUPPORT_LIST when the const is available.
+            id: ProtocolIE_ID(ID_PLMN_SUPPORT_LIST),
             criticality: Criticality(Criticality::REJECT),
             value: ResponseIEValue::Id_PLMNSupportList(PLMNSupportList(plmns)),
         };
@@ -186,14 +211,14 @@ impl NgapManager {
 
         // Relative AMF Capacity
         let relative_amf_capacity_ie = NGSetupResponseProtocolIEs_Entry {
-            id: ProtocolIE_ID(86), // TODO: ID_RELATIVE_AMF_CAPACITY when the const is available.
+            id: ProtocolIE_ID(ID_RELATIVE_AMF_CAPACITY),
             criticality: Criticality(Criticality::REJECT),
             value: ResponseIEValue::Id_RelativeAMFCapacity(RelativeAMFCapacity(255)),
         };
         ies.push(relative_amf_capacity_ie);
 
         let response = SuccessfulOutcome {
-            procedure_code: ProcedureCode(21),
+            procedure_code: ProcedureCode(ID_NG_SETUP),
             criticality: Criticality(Criticality::REJECT),
             value: SuccessfulOutcomeValue::Id_NGSetup(NGSetupResponse {
                 protocol_i_es: NGSetupResponseProtocolIEs(ies),
@@ -201,24 +226,11 @@ impl NgapManager {
         };
 
         let pdu = NGAP_PDU::SuccessfulOutcome(response);
-        log::debug!("Response: {:#?}", pdu);
-
-        let mut codec_data = PerCodecData::new_aper();
-        let result = pdu.aper_encode(&mut codec_data); // TODO: Handle error
-        log::debug!("Result: encode: {:#?}", result);
-        let data = codec_data.get_inner().unwrap();
-
-        let senddata = NgapMgrToRanConnMessage::SendData(SendDataMessage {
-            txdata: SendData {
-                payload: data,
-                snd_info: None,
-            },
-            id: id,
-        });
-
-        let tx = self.ran_connections.get(&id).unwrap();
-        // TODO : Handle Error.
-        let _ = tx.send(senddata).await;
+        if let Err(e) = self.ngap_send_pdu(id, pdu).await {
+            log::error!("Error in Sending NGSetupResponse. ({})", e);
+        } else {
+            log::info!("NGSetupRequest Processing Successful. NGSetup complete for GNB");
+        }
     }
 
     async fn send_ngsetup_failure(
@@ -227,10 +239,12 @@ impl NgapManager {
         cause: Cause,
         diag: Option<CriticalityDiagnostics>,
     ) {
+        log::debug!("Sending `NGSetupFailure` (Failure).");
+
         let mut ies = vec![];
 
         let cause_ie = NGSetupFailureProtocolIEs_Entry {
-            id: ProtocolIE_ID(15),
+            id: ProtocolIE_ID(ID_CAUSE),
             criticality: Criticality(Criticality::REJECT),
             value: FailureIE::Id_Cause(cause),
         };
@@ -238,7 +252,7 @@ impl NgapManager {
 
         if diag.is_some() {
             let diag_ie = NGSetupFailureProtocolIEs_Entry {
-                id: ProtocolIE_ID(19),
+                id: ProtocolIE_ID(ID_CRITICALITY_DIAGNOSTICS),
                 criticality: Criticality(Criticality::IGNORE),
                 value: FailureIE::Id_CriticalityDiagnostics(diag.unwrap()),
             };
@@ -246,7 +260,7 @@ impl NgapManager {
         }
 
         let failure = UnsuccessfulOutcome {
-            procedure_code: ProcedureCode(21),
+            procedure_code: ProcedureCode(ID_NG_SETUP),
             criticality: Criticality(Criticality::REJECT),
             value: UnsuccessfulOutcomeValue::Id_NGSetup(NGSetupFailure {
                 protocol_i_es: NGSetupFailureProtocolIEs(ies),
@@ -254,23 +268,10 @@ impl NgapManager {
         };
 
         let pdu = NGAP_PDU::UnsuccessfulOutcome(failure);
-        log::debug!("Response: {:#?}", pdu);
-
-        let mut codec_data = PerCodecData::new_aper();
-        let result = pdu.aper_encode(&mut codec_data); // TODO: Handle error
-        log::debug!("Result: encode: {:#?}", result);
-        let data = codec_data.get_inner().unwrap();
-
-        let senddata = NgapMgrToRanConnMessage::SendData(SendDataMessage {
-            txdata: SendData {
-                payload: data,
-                snd_info: None,
-            },
-            id: id,
-        });
-
-        let tx = self.ran_connections.get(&id).unwrap();
-        // TODO : Handle Error.
-        let _ = tx.send(senddata).await;
+        if let Err(e) = self.ngap_send_pdu(id, pdu).await {
+            log::error!("Error in Sending NGSetupFailure. ({})", e);
+        } else {
+            log::info!("NGSetupRequest Processing Failed for GNB");
+        }
     }
 }

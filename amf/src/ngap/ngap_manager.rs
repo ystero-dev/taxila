@@ -4,19 +4,23 @@ use asn1_codecs::{aper::AperCodec, PerCodecData};
 
 use tokio::sync::mpsc::{self, Receiver, Sender};
 
-use sctp_rs::{AssociationId, BindxFlags, Listener, Socket, SocketToAssociation};
+use sctp_rs::{AssociationId, BindxFlags, Listener, SendData, Socket, SocketToAssociation};
 
 use ngap::messages::r17::NGAP_PDU;
 
 use crate::config::AmfConfig;
 use crate::messages::{
     AmfToNgapMessage, NgapMgrToRanConnMessage, NgapToAmfMessage, RanConnToNgapMgrMessage,
-    ReceivedDataMessage,
+    ReceivedDataMessage, SendDataMessage,
 };
 
 use super::ran_connection::RanConnection;
 
 const NGAP_SCTP_PORT: u16 = 38412;
+
+// RanNode: A structure of this type is maintained for each of the RAN Node that is connected to
+// this AMF. The RAN Node can be of type `GNB` or `N3IWF`. (Currently only GNB Types supported.)
+struct _RanNode {}
 
 // NgapManager: Is a struct that connects the `NGAP` messages received from the `GNB` to the `AMF`
 // processing. The encoding and decoding of the NGAP PDUs is performed by this structure.
@@ -128,5 +132,39 @@ impl NgapManager {
         futures::future::join_all(tasks).await;
 
         Ok(())
+    }
+
+    pub(crate) async fn ngap_send_pdu(
+        &self,
+        id: AssociationId,
+        pdu: NGAP_PDU,
+    ) -> std::io::Result<()> {
+        log::debug!("Sending PDU to `RanConnection` task to send to RAN Node.");
+
+        log::trace!("PDU: {:#?}", pdu);
+
+        let mut codec_data = PerCodecData::new_aper();
+        let result = pdu.aper_encode(&mut codec_data); // TODO: Handle error
+        log::debug!("Result: encode: {:#?}", result);
+        let data = codec_data.get_inner().unwrap();
+
+        let senddata = NgapMgrToRanConnMessage::SendData(SendDataMessage {
+            txdata: SendData {
+                payload: data,
+                snd_info: None,
+            },
+            _id: id,
+        });
+
+        let tx = self.ran_connections.get(&id).unwrap();
+        // TODO : Handle Error.
+        if let Err(e) = tx.send(senddata).await {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Error Tx: `NgapMgr` -> `RanConnection`:{}", e),
+            ))
+        } else {
+            Ok(())
+        }
     }
 }
