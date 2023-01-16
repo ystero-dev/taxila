@@ -1,0 +1,20 @@
+# NGAP Configurations, we support a list of Addresses and a port as NGAP Configuration
+ngap:
+  addrs:
+    - 127.0.0.1
+    - ::1
+  port: 38412
+# MCC/MNC ID Of the PLMN Supported. The implementation of AMF Supports only a single PLMN
+# or NPN, In the case of NPN optional NID is added as a part of configuration.
+plmn:
+  mcc: 901
+  mnc: 70
+# A List of TACs supported.
+tacs: [ 1, 16777215, 2000]
+# AMF ID: As a pointer, set and region ID
+amf_id:
+  pointer: 63
+  set: 10
+  region: 1
+# Human readable AMF Name
+amf_name: taxila-amf
