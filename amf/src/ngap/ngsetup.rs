@@ -13,7 +13,8 @@ use ngap::messages::r17::{
 
 // Types related to NGSetupRequest
 use ngap::messages::r17::{
-    NGSetupRequest, NGSetupRequestProtocolIEs_EntryValue as RequestIEValue, SupportedTAList,
+    GlobalRANNodeID, NGSetupRequest, NGSetupRequestProtocolIEs_EntryValue as RequestIEValue,
+    SupportedTAList,
 };
 
 // Types related to NGSetupResponse
@@ -34,14 +35,14 @@ use ngap::messages::r17::{
 
 use crate::config::PlmnConfig;
 
-use super::ngap_manager::NgapManager;
+use super::ngap_manager::{NgapManager, RanNode};
 
 impl NgapManager {
     pub(super) async fn process_ng_setup_request(
-        &self,
+        &mut self,
         id: AssociationId,
         ngsetup: NGSetupRequest,
-    ) {
+    ) -> std::io::Result<()> {
         log::debug!(
             "Processing 'NgSetupRequest' received on AssociationID: {}",
             id,
@@ -54,26 +55,33 @@ impl NgapManager {
         let mut paging_drx_present = false;
         let mut ran_ta_supported = false;
 
+        let mut ran_node_id: Option<Box<GlobalRANNodeID>> = None;
+        let mut supported_ta_list: Option<Box<SupportedTAList>> = None;
+        let mut name: Option<String> = None;
         for ie in ngsetup.protocol_i_es.0 {
             match ie.value {
                 RequestIEValue::Id_DefaultPagingDRX(_paging_drx) => {
                     paging_drx_present = true;
                 }
                 RequestIEValue::Id_Extended_RANNodeName(_ext_ran_node_name) => {}
-                RequestIEValue::Id_GlobalRANNodeID(_ran_node_id) => {
+                RequestIEValue::Id_GlobalRANNodeID(global_ran_node_id) => {
                     global_rannode_id_present = true;
+                    ran_node_id = Some(Box::new(global_ran_node_id));
                 }
                 RequestIEValue::Id_NB_IoT_DefaultPagingDRX(_nb_iot_def_paging_drx) => {
                     log::warn!("Received unhandled NB_IOT Default Paging DRX");
                 }
-                RequestIEValue::Id_RANNodeName(_ran_node_name) => {}
-                RequestIEValue::Id_SupportedTAList(supported_ta_list) => {
+                RequestIEValue::Id_RANNodeName(ran_node_name) => {
+                    name = Some(ran_node_name.0.clone());
+                }
+                RequestIEValue::Id_SupportedTAList(recd_supported_ta_list) => {
                     supported_ta_list_present = true;
                     ran_ta_supported = Self::any_tas_supported(
-                        &supported_ta_list,
+                        &recd_supported_ta_list,
                         &self.config.plmn,
                         &self.config.tacs,
                     );
+                    supported_ta_list = Some(Box::new(recd_supported_ta_list));
                 }
                 RequestIEValue::Id_UERetentionInformation(_ue_retention_info) => {
                     log::warn!("Received unhandled UE Retention Information");
@@ -107,7 +115,31 @@ impl NgapManager {
                 .await;
         }
 
-        self.send_ngsetup_success(id).await;
+        let name = if name.is_none() {
+            String::new()
+        } else {
+            name.unwrap()
+        };
+
+        self.send_ngsetup_success(id).await?;
+
+        let ran_node = RanNode {
+            sctp_id: id,
+            ran_node_id: ran_node_id.unwrap(),
+            supported_ta_list: supported_ta_list.unwrap(),
+            name,
+            next_ue_stream: 1,
+            ngsetup_success: true,
+        };
+
+        log::info!(
+            "NGSetupRequest Processing Successful. NGSetup complete for RAN Node[{}]",
+            ran_node
+        );
+
+        self.ran_nodes.insert(id, ran_node);
+
+        Ok(())
     }
 
     // If any of the RAN TAs received matches the configured TAs.
@@ -143,7 +175,7 @@ impl NgapManager {
         false
     }
 
-    async fn send_ngsetup_success(&self, id: AssociationId) {
+    async fn send_ngsetup_success(&self, id: AssociationId) -> std::io::Result<()> {
         log::debug!("Sending `NGSetupResponse` (Success).");
 
         // Prepare the NGSetup Success
@@ -228,8 +260,9 @@ impl NgapManager {
         let pdu = NGAP_PDU::SuccessfulOutcome(response);
         if let Err(e) = self.ngap_send_pdu(id, pdu).await {
             log::error!("Error in Sending NGSetupResponse. ({})", e);
+            Err(e)
         } else {
-            log::info!("NGSetupRequest Processing Successful. NGSetup complete for GNB");
+            Ok(())
         }
     }
 
@@ -238,7 +271,7 @@ impl NgapManager {
         id: AssociationId,
         cause: Cause,
         diag: Option<CriticalityDiagnostics>,
-    ) {
+    ) -> std::io::Result<()> {
         log::debug!("Sending `NGSetupFailure` (Failure).");
 
         let mut ies = vec![];
@@ -270,8 +303,13 @@ impl NgapManager {
         let pdu = NGAP_PDU::UnsuccessfulOutcome(failure);
         if let Err(e) = self.ngap_send_pdu(id, pdu).await {
             log::error!("Error in Sending NGSetupFailure. ({})", e);
+            Err(e)
         } else {
             log::info!("NGSetupRequest Processing Failed for GNB");
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Error NGSetup Processing Failure"),
+            ))
         }
     }
 }

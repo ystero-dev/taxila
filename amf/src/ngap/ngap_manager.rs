@@ -7,6 +7,7 @@ use tokio::sync::mpsc::{self, Receiver, Sender};
 use sctp_rs::{AssociationId, BindxFlags, Listener, SendData, Socket, SocketToAssociation};
 
 use ngap::messages::r17::NGAP_PDU;
+use ngap::messages::r17::{GlobalRANNodeID, SupportedTAList};
 
 use crate::config::AmfConfig;
 use crate::messages::{
@@ -20,7 +21,27 @@ const NGAP_SCTP_PORT: u16 = 38412;
 
 // RanNode: A structure of this type is maintained for each of the RAN Node that is connected to
 // this AMF. The RAN Node can be of type `GNB` or `N3IWF`. (Currently only GNB Types supported.)
-struct _RanNode {}
+#[allow(dead_code)]
+pub(crate) struct RanNode {
+    pub(crate) ran_node_id: Box<GlobalRANNodeID>, // Boxed: To keep the size in check
+    pub(crate) supported_ta_list: Box<SupportedTAList>, // Boxed: To keep the size in check
+    pub(crate) name: String,
+    pub(crate) sctp_id: AssociationId,
+    pub(crate) next_ue_stream: u16,
+    pub(crate) ngsetup_success: bool,
+}
+
+impl std::fmt::Display for RanNode {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let gnb_name = if self.name.is_empty() {
+            "EmptyGNBName".to_string()
+        } else {
+            self.name.clone()
+        };
+
+        write!(f, "{}({})", gnb_name, self.sctp_id)
+    }
+}
 
 // NgapManager: Is a struct that connects the `NGAP` messages received from the `GNB` to the `AMF`
 // processing. The encoding and decoding of the NGAP PDUs is performed by this structure.
@@ -36,6 +57,7 @@ pub(crate) struct NgapManager {
     pub(crate) config: AmfConfig,
     socket: Listener,
     pub(crate) ran_connections: HashMap<AssociationId, Sender<NgapMgrToRanConnMessage>>,
+    pub(crate) ran_nodes: HashMap<AssociationId, RanNode>,
 }
 
 impl NgapManager {
@@ -67,6 +89,7 @@ impl NgapManager {
             config,
             socket,
             ran_connections: HashMap::new(),
+            ran_nodes: HashMap::new(),
         })
     }
 
@@ -111,7 +134,7 @@ impl NgapManager {
                     let mut codec_data =
                     PerCodecData::from_slice_aper(&rxdata.payload);
                     let pdu = NGAP_PDU::aper_decode(&mut codec_data).unwrap();
-                    match pdu {
+                    let result = match pdu {
                         NGAP_PDU::InitiatingMessage(init) => self.process_initiating_message(id, init).await,
                         NGAP_PDU::SuccessfulOutcome(success) => {
                             self.process_successful_outcome(id, success)
@@ -119,6 +142,9 @@ impl NgapManager {
                         NGAP_PDU::UnsuccessfulOutcome(failure) => {
                             self.process_unsuccessful_outcome(id, failure)
                         }
+                    };
+                    if result.is_err() {
+                        log::error!("Error Processing NGAP Message: {:#?}" , result.err().unwrap());
                     }
                 }
                 Some(_amf_data) = amf_to_ngap_rx.recv() => {

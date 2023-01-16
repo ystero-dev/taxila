@@ -8,7 +8,12 @@ impl NgapManager {
     pub(super) fn process_successful_outcome(
         &self,
         _id: AssociationId,
-        _success: SuccessfulOutcome,
-    ) {
+        success: SuccessfulOutcome,
+    ) -> std::io::Result<()> {
+        log::error!("Unsupported Message received: {:?}", success.procedure_code);
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Unsupported Initiating Message"),
+        ))
     }
 }
