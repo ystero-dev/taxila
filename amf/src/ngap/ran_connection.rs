@@ -50,6 +50,10 @@ impl RanConnection {
                         NgapMgrToRanConnMessage::SendData(m) =>  {
                             self.sock.sctp_send(m.txdata).await?;
                         }
+                        NgapMgrToRanConnMessage::Signal(_) => {
+                            log::warn!("Signal Received. Closing RanConnection Task for {:#?}", self.address);
+                            break Ok(());
+                        }
                     }
 
                 }

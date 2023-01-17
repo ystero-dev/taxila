@@ -148,14 +148,20 @@ impl NgapManager {
                     }
                 }
                 Some(_amf_data) = amf_to_ngap_rx.recv() => {
-                    log::debug!("Data Received from AMF.");
+                    log::warn!("Signal Received from AMF.");
+                    log::debug!("Sending close to all RAN Connections.");
+                    for (_k, v) in self.ran_connections {
+                        let _ = v.send(NgapMgrToRanConnMessage::Signal(15)).await;
+                    }
                     break ;
                 }
             }
             log::debug!("select loop completed..");
         }
 
+        log::warn!("Waiting for All the Ran Connection Tasks to finish.");
         futures::future::join_all(tasks).await;
+        log::warn!("Closing NgapManager task!");
 
         Ok(())
     }

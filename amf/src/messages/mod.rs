@@ -20,12 +20,15 @@ pub(crate) struct ReceivedDataMessage {
 
 // Message sent to NGAP Task by AMF.
 #[derive(Debug, Clone)]
-pub(crate) enum AmfToNgapMessage {}
+pub(crate) enum AmfToNgapMessage {
+    Signal(i32),
+}
 
 // Message sent to Gnb Connection task by NGAP Task.
 #[derive(Debug, Clone)]
 pub(crate) enum NgapMgrToRanConnMessage {
     SendData(SendDataMessage),
+    Signal(i32),
 }
 
 #[derive(Debug, Clone)]
