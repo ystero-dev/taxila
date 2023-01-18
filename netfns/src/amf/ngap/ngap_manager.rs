@@ -9,8 +9,8 @@ use sctp_rs::{AssociationId, BindxFlags, Listener, SendData, Socket, SocketToAss
 use ngap::messages::r17::NGAP_PDU;
 use ngap::messages::r17::{GlobalRANNodeID, SupportedTAList};
 
-use crate::config::AmfConfig;
-use crate::messages::{
+use crate::amf::config::AmfConfig;
+use crate::amf::messages::{
     AmfToNgapMessage, NgapMgrToRanConnMessage, NgapToAmfMessage, RanConnToNgapMgrMessage,
     ReceivedDataMessage, SendDataMessage,
 };

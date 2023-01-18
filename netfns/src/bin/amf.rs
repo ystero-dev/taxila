@@ -41,7 +41,7 @@ async fn main() -> std::io::Result<()> {
         )
     })?;
 
-    let amf = taxila_amf::Amf::from_config(amf_config)?;
+    let amf = netfns_5g::Amf::from_config(amf_config)?;
 
     amf.run().await
 }

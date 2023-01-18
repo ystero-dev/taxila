@@ -1,9 +1,9 @@
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::mpsc::{self, Sender};
 
-use crate::config::AmfConfig;
-use crate::messages::{AmfToNgapMessage, NgapToAmfMessage};
-use crate::ngap::ngap_manager::NgapManager;
+use super::config::AmfConfig;
+use super::messages::{AmfToNgapMessage, NgapToAmfMessage};
+use super::ngap::ngap_manager::NgapManager;
 
 pub struct Amf {
     config: AmfConfig,

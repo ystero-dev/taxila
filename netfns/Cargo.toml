@@ -1,10 +1,10 @@
 [package]
-name = "taxila-amf"
+name = "netfns-5g"
 version = "0.0.1"
 authors = ["Abhijit Gadgil <gabhijit@iitbombay.org>"]
 edition = "2018"
 description = "5G Access and Moblility Management Function (AMF) implementation in Rust."
-keywords = ["5g", "amf"]
+keywords = ["5g", "core"]
 repository = "https://github.com/gabhijit/taxila.git"
 readme = "README.md"
 

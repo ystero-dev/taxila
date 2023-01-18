@@ -33,7 +33,7 @@ use ngap::messages::r17::{
     NGSetupFailureProtocolIEs_EntryValue as FailureIE, ID_CAUSE, ID_CRITICALITY_DIAGNOSTICS,
 };
 
-use crate::config::PlmnConfig;
+use crate::amf::config::PlmnConfig;
 
 use super::ngap_manager::{NgapManager, RanNode};
 

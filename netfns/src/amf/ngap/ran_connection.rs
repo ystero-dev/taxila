@@ -7,7 +7,7 @@ use sctp_rs::{
     SubscribeEventAssocId,
 };
 
-use crate::messages::{NgapMgrToRanConnMessage, RanConnToNgapMgrMessage, ReceivedDataMessage};
+use crate::amf::messages::{NgapMgrToRanConnMessage, RanConnToNgapMgrMessage, ReceivedDataMessage};
 
 const NGAP_SCTP_PPID: u32 = 60;
 
