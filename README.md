@@ -11,6 +11,6 @@ This project hosts following sub projects which are released as their own crates
 3. `netfns` - This is an implementation of network functions like AMF, SMF  etc.
 
 
-# LICENSE
+# License
 
 See LICENSE information for each of the sub projects.

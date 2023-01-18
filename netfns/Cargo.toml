@@ -3,10 +3,11 @@ name = "netfns-5g"
 version = "0.0.1"
 authors = ["Abhijit Gadgil <gabhijit@iitbombay.org>"]
 edition = "2018"
-description = "5G Access and Moblility Management Function (AMF) implementation in Rust."
+description = "5G Core Network Functions implementations in Rust."
 keywords = ["5g", "core"]
 repository = "https://github.com/gabhijit/taxila.git"
 readme = "README.md"
+license = "AGPL-3.0-or-later"
 
 [dependencies]
 asn1-codecs = "0.5"
@@ -20,3 +21,8 @@ tokio = { version = "1.0", features = ["rt", "rt-multi-thread", "sync", "time", 
 futures = { version = "0.3" }
 clap = { version = "4.0", features = [ "derive", "env"] }
 env_logger = { version = "0.9" }
+
+
+[[bin]]
+name = "amf"
+path = "src/amf/bin/amf.rs"
