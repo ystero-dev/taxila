@@ -4,7 +4,7 @@ use std::io::Read;
 use clap::Parser;
 
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
+#[command(author, version, about="AMF: Accesss and Mobility Management Function (netns-5g)", long_about = None)]
 struct Cli {
     #[arg(short, help="Enable debug", action=clap::ArgAction::Count)]
     debug: u8,

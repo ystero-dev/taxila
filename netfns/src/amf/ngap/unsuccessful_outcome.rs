@@ -13,7 +13,7 @@ impl NgapManager {
         log::error!("Unsupported Message received: {:?}", failure.procedure_code);
         Err(std::io::Error::new(
             std::io::ErrorKind::Other,
-            format!("Unsupported Initiating Message"),
+            "Unsupported Initiating Message".to_string(),
         ))
     }
 }

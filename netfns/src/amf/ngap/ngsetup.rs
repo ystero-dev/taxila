@@ -308,7 +308,7 @@ impl NgapManager {
             log::info!("NGSetupRequest Processing Failed for GNB");
             Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
-                format!("Error NGSetup Processing Failure"),
+                "Error NGSetup Processing Failure".to_string(),
             ))
         }
     }
