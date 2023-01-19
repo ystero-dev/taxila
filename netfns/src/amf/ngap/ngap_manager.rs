@@ -134,13 +134,19 @@ impl NgapManager {
                     let mut codec_data =
                     PerCodecData::from_slice_aper(&rxdata.payload);
                     let pdu = NGAP_PDU::aper_decode(&mut codec_data).unwrap();
+                    let sid = if rxdata.rcv_info.is_some() {
+                        rxdata.rcv_info.as_ref().unwrap().sid
+                    } else {
+                        log::warn!("RecvInfo not received assuming default stream ID 0.");
+                        0
+                    };
                     let result = match pdu {
-                        NGAP_PDU::InitiatingMessage(init) => self.process_initiating_message(id, init).await,
+                        NGAP_PDU::InitiatingMessage(init) => self.process_initiating_message(id, sid, init).await,
                         NGAP_PDU::SuccessfulOutcome(success) => {
-                            self.process_successful_outcome(id, success)
+                            self.process_successful_outcome(id, sid, success)
                         }
                         NGAP_PDU::UnsuccessfulOutcome(failure) => {
-                            self.process_unsuccessful_outcome(id, failure)
+                            self.process_unsuccessful_outcome(id, sid, failure)
                         }
                     };
                     if result.is_err() {

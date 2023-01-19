@@ -8,11 +8,16 @@ impl NgapManager {
     pub(super) async fn process_initiating_message(
         &mut self,
         id: AssociationId,
+        sid: u16,
         init: InitiatingMessage,
     ) -> std::io::Result<()> {
         match init.value {
             InitiatingMessageValue::Id_NGSetup(ng_setup_req) => {
                 self.process_ng_setup_request(id, ng_setup_req).await
+            }
+            InitiatingMessageValue::Id_InitialUEMessage(initial_ue_message) => {
+                self.process_initial_ue_message(id, sid, initial_ue_message)
+                    .await
             }
             _ => {
                 log::error!("Unsupported Message received: {:?}", init.procedure_code);

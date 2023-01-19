@@ -63,7 +63,7 @@ impl RanConnection {
                     match received {
                         NotificationOrData::Notification(notification) => match notification {
                             Notification::Shutdown(_) => {
-                                log::info!("Shutdown Event Received for GNB: {}", self.address);
+                                log::warn!("Shutdown Event Received for GNB: {}", self.address);
                                 break Ok(());
                             }
                             _ => {
@@ -73,7 +73,7 @@ impl RanConnection {
                         NotificationOrData::Data(data) => {
                             log::debug!("Received Data: {:#?}", data);
                             if data.payload.is_empty() {
-                                log::info!("Remote end '{}' closed connection.", self.address);
+                                log::warn!("Remote end '{}' closed connection.", self.address);
                                 break Ok(());
                             } else {
                                 let msg = RanConnToNgapMgrMessage::ReceivedData(

@@ -8,3 +8,5 @@ mod successful_outcome;
 mod unsuccessful_outcome;
 
 mod ngsetup;
+
+mod initial_ue;
