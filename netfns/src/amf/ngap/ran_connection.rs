@@ -9,7 +9,7 @@ use sctp_rs::{
 
 use crate::amf::messages::{NgapMgrToRanConnMessage, RanConnToNgapMgrMessage, ReceivedDataMessage};
 
-const NGAP_SCTP_PPID: u32 = 60;
+pub(super) const NGAP_SCTP_PPID: u32 = 60;
 
 pub(crate) struct RanConnection {
     sock: ConnectedSocket,

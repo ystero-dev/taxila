@@ -128,7 +128,6 @@ impl NgapManager {
             ran_node_id: ran_node_id.unwrap(),
             supported_ta_list: supported_ta_list.unwrap(),
             name,
-            next_ue_stream: 1,
             ngsetup_success: true,
         };
 
@@ -258,7 +257,7 @@ impl NgapManager {
         };
 
         let pdu = NGAP_PDU::SuccessfulOutcome(response);
-        if let Err(e) = self.ngap_send_pdu(id, pdu).await {
+        if let Err(e) = self.ngap_send_pdu(id, pdu, None).await {
             log::error!("Error in Sending NGSetupResponse. ({})", e);
             Err(e)
         } else {
@@ -301,11 +300,13 @@ impl NgapManager {
         };
 
         let pdu = NGAP_PDU::UnsuccessfulOutcome(failure);
-        if let Err(e) = self.ngap_send_pdu(id, pdu).await {
-            log::error!("Error in Sending NGSetupFailure. ({})", e);
+        if let Err(e) = self.ngap_send_pdu(id, pdu, None).await {
+            log::error!(
+                "Error in Sending NGSetupFailure(NgapManager -> RanConnection). ({})",
+                e
+            );
             Err(e)
         } else {
-            log::info!("NGSetupRequest Processing Failed for GNB");
             Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 "Error NGSetup Processing Failure".to_string(),
