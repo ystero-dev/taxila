@@ -4,6 +4,8 @@ ngap:
     - 127.0.0.1
     - ::1
   port: 38412
+  output_streams: 100
+  input_streams: 100
 # MCC/MNC ID Of the PLMN Supported. The implementation of AMF Supports only a single PLMN
 # or NPN, In the case of NPN optional NID is added as a part of configuration.
 plmn:

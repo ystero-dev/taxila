@@ -20,6 +20,8 @@ use crate::amf::messages::{
 use super::ran_connection::{RanConnection, NGAP_SCTP_PPID};
 
 const NGAP_SCTP_PORT: u16 = 38412;
+const NGAP_INPUT_STREAMS: u16 = 100;
+const NGAP_OUTPUT_STREAMS: u16 = 100;
 
 //NgapRanUe: Structure representing the Ngap specific information about the UE.
 //
@@ -95,6 +97,17 @@ impl NgapManager {
         }
 
         socket.sctp_bindx(&bind_addrs, BindxFlags::Add)?;
+        let ostreams = if config.ngap.output_streams.is_some() {
+            config.ngap.output_streams.unwrap()
+        } else {
+            NGAP_OUTPUT_STREAMS
+        };
+        let istreams = if config.ngap.input_streams.is_some() {
+            config.ngap.input_streams.unwrap()
+        } else {
+            NGAP_INPUT_STREAMS
+        };
+        socket.sctp_setup_init_params(ostreams, istreams, 0, 0)?;
 
         // TODO: Make it configurable
         let socket = socket.listen(100)?;

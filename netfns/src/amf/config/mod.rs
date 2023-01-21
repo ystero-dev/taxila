@@ -62,6 +62,8 @@ impl<'de> Deserialize<'de> for PlmnConfig {
 pub struct NgapConfig {
     pub(crate) addrs: Vec<IpAddr>,
     pub(crate) port: Option<u16>,
+    pub(crate) output_streams: Option<u16>,
+    pub(crate) input_streams: Option<u16>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
