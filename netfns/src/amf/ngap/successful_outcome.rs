@@ -1,3 +1,5 @@
+//! Handling of `SuccessfulOutcome` messages received from RAN Node
+
 use sctp_rs::AssociationId;
 
 use ngap::messages::r17::SuccessfulOutcome;

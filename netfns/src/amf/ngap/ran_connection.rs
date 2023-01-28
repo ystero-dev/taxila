@@ -1,3 +1,5 @@
+//! `RanConnection`: Handling IO for data on RanConnection
+
 use std::net::SocketAddr;
 
 use tokio::sync::mpsc::{Receiver, Sender};
@@ -11,7 +13,7 @@ use crate::amf::messages::{NgapMgrToRanConnMessage, RanConnToNgapMgrMessage, Rec
 
 pub(super) const NGAP_SCTP_PPID: u32 = 60;
 
-pub(crate) struct RanConnection {
+pub(super) struct RanConnection {
     sock: ConnectedSocket,
     id: AssociationId,
     address: SocketAddr,
@@ -20,7 +22,7 @@ pub(crate) struct RanConnection {
 }
 
 impl RanConnection {
-    pub(crate) fn new(
+    pub(super) fn new(
         id: AssociationId,
         sock: ConnectedSocket,
         address: SocketAddr,
@@ -36,7 +38,7 @@ impl RanConnection {
         }
     }
 
-    pub(crate) async fn handle_new_connection(mut self) -> std::io::Result<()> {
+    pub(super) async fn handle_new_connection(mut self) -> std::io::Result<()> {
         log::info!("New Connection.");
 
         Self::init_new_connection(&self).await?;

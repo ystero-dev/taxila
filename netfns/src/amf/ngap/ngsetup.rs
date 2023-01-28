@@ -142,7 +142,7 @@ impl NgapManager {
     }
 
     // If any of the RAN TAs received matches the configured TAs.
-    pub(crate) fn any_tas_supported(
+    pub(super) fn any_tas_supported(
         ran_tas: &SupportedTAList,
         plmn: &PlmnConfig,
         tacs: &Vec<u32>,
