@@ -24,7 +24,7 @@ pub(crate) enum AmfToNgapMessage {
     Signal(i32),
 }
 
-// Message sent to Gnb Connection task by NGAP Task.
+// Message sent to Ran Connection task by NGAP Task.
 #[derive(Debug, Clone)]
 pub(crate) enum NgapMgrToRanConnMessage {
     SendData(SendDataMessage),
@@ -36,3 +36,13 @@ pub(crate) struct SendDataMessage {
     pub(crate) _id: AssociationId,
     pub(crate) txdata: SendData,
 }
+
+// Message Sent from AMF to NAS Task
+#[derive(Debug)]
+pub(crate) enum AmfToNasMessage {
+    Signal(i32),
+}
+
+// Message Sent from NAS to AMF
+#[derive(Debug)]
+pub(crate) enum NasToAmfMessage {}

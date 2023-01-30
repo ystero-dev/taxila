@@ -4,12 +4,14 @@ use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::mpsc::{self, Sender};
 
 use super::config::AmfConfig;
-use super::messages::{AmfToNgapMessage, NgapToAmfMessage};
+use super::messages::{AmfToNasMessage, AmfToNgapMessage, NasToAmfMessage, NgapToAmfMessage};
+use super::nas::nas_manager::NasManager;
 use super::ngap::ngap_manager::NgapManager;
 
 pub struct Amf {
     config: AmfConfig,
     amf_to_ngap_tx: Option<Sender<AmfToNgapMessage>>,
+    amf_to_nas_tx: Option<Sender<AmfToNasMessage>>,
 }
 
 impl Amf {
@@ -21,6 +23,7 @@ impl Amf {
         Ok(Self {
             config,
             amf_to_ngap_tx: None,
+            amf_to_nas_tx: None,
         })
     }
 
@@ -35,29 +38,42 @@ impl Amf {
             self.config.tacs
         );
 
+        // Signals
         let mut sigterm = signal(SignalKind::terminate())?;
         let mut sigint = signal(SignalKind::interrupt())?;
 
+        // Channels AMF -> Tasks
         let (amf_to_ngap_tx, amf_to_ngap_rx) = mpsc::channel(10);
         self.amf_to_ngap_tx = Some(amf_to_ngap_tx);
 
-        let (ngap_to_amf_tx, mut ngap_to_amf_rx) = mpsc::channel::<NgapToAmfMessage>(10);
+        let (amf_to_nas_tx, amf_to_nas_rx) = mpsc::channel(10);
+        self.amf_to_nas_tx = Some(amf_to_nas_tx);
 
+        // Channels Tasks -> AMF
+        let (ngap_to_amf_tx, mut ngap_to_amf_rx) = mpsc::channel::<NgapToAmfMessage>(10);
         let ngap = NgapManager::from_config(self.config.clone())?;
         let ngap_task = tokio::spawn(NgapManager::run(ngap, amf_to_ngap_rx, ngap_to_amf_tx));
+
+        let (nas_to_amf_tx, mut nas_to_amf_rx) = mpsc::channel::<NasToAmfMessage>(10);
+        let nas = NasManager::from_config(self.config.clone())?;
+        let nas_task = tokio::spawn(NasManager::run(nas, amf_to_nas_rx, nas_to_amf_tx));
 
         loop {
             tokio::select! {
                 Some(_) = ngap_to_amf_rx.recv() => {
                 }
+                Some(_) = nas_to_amf_rx.recv() => {
+                }
                 _ = sigterm.recv() => {
                     log::warn!("Received SIGTERM Sending to all threads.");
                     _ = self.amf_to_ngap_tx.as_ref().unwrap().send(AmfToNgapMessage::Signal(15)).await;
+                    _ = self.amf_to_nas_tx.as_ref().unwrap().send(AmfToNasMessage::Signal(15)).await;
                     break;
                 }
                 _ = sigint.recv() => {
                     log::warn!("Received INT Sending to all threads.");
                     _ = self.amf_to_ngap_tx.as_ref().unwrap().send(AmfToNgapMessage::Signal(15)).await;
+                    _ = self.amf_to_nas_tx.as_ref().unwrap().send(AmfToNasMessage::Signal(15)).await;
                     break;
                 }
             }
@@ -65,6 +81,7 @@ impl Amf {
 
         log::info!("Program Closing waiting for the tasks to finish!");
         let _ = ngap_task.await?;
+        let _ = nas_task.await?;
 
         log::info!("Closing the main application task for AMF.");
         Ok(())

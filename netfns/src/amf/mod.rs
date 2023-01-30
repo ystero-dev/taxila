@@ -1,7 +1,9 @@
 pub(crate) mod structs;
 
-pub(crate) mod ngap;
+pub(in crate::amf) mod ngap;
 
-pub(crate) mod messages;
+pub(in crate::amf) mod messages;
 
-pub(crate) mod config;
+pub(in crate::amf) mod config;
+
+pub(in crate::amf) mod nas;
