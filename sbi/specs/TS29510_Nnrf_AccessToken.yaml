@@ -4,8 +4,8 @@ info:
   version: '1.2.1'
   title: 'NRF OAuth2'
   description: |
-    NRF OAuth2 Authorization.  
-    © 2022, 3GPP Organizational Partners (ARIB, ATIS, CCSA, ETSI, TSDSI, TTA, TTC).  
+    NRF OAuth2 Authorization.
+    © 2022, 3GPP Organizational Partners (ARIB, ATIS, CCSA, ETSI, TSDSI, TTA, TTC).
     All rights reserved.
 
 externalDocs:
