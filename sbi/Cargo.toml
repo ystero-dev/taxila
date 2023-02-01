@@ -1,0 +1,18 @@
+[package]
+name = "sbi5g"
+version = "0.0.1"
+edition = "2021"
+authors = ["Abhijit Gadgil <gabhijit@iitbombay.org>"]
+description = "Service Based Interface definitions for 5G (3GPP: 29.XXX - Release 17)"
+keywords = ["sbi", "5g", "openapi"]
+repository = "https://github.com/gabhijit/taxila.git"
+license = "Apache-2.0 OR MIT"
+readme = "README.md"
+include = ["src/**/*.rs", "README.md", "Cargo.toml", "LICENSE-MIT", "LICENSE-Apache2"]
+
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+openapiv3 = "1.0"
+serde_yaml = "0.9"

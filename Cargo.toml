@@ -3,4 +3,5 @@ members = [
 	"netfns",
 	"ngap",
 	"nas",
+	"sbi",
 ]
