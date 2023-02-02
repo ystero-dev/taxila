@@ -14,5 +14,6 @@ include = ["src/**/*.rs", "README.md", "Cargo.toml", "LICENSE-MIT", "LICENSE-Apa
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-openapiv3 = "1.0"
+openapiv3 = { git = "https://github.com/gabhijit/openapiv3"}
+indexmap = "1.0"
 serde_yaml = "0.9"

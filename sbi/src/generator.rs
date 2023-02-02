@@ -3,6 +3,7 @@
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 
+use indexmap::IndexMap;
 #[allow(unused)]
 use openapiv3::*;
 
@@ -15,7 +16,7 @@ pub struct Generator {
 #[derive(Debug, Clone)]
 struct SpecModule {
     spec: OpenAPI,
-    module: String,
+    _module: String,
 }
 
 impl Generator {
@@ -42,13 +43,13 @@ impl Generator {
                 entry.as_ref().to_str().unwrap().to_string(),
                 SpecModule {
                     spec,
-                    module: module_name.to_string(),
+                    _module: module_name.to_string(),
                 },
             );
         }
 
         let mut all_references = vec![];
-        for (_, v) in &self.specs {
+        for v in self.specs.values() {
             let references = Self::get_dependency_for_spec(&v.spec);
             all_references.extend(references);
         }
@@ -79,14 +80,14 @@ impl Generator {
                     path.file_name().unwrap().to_str().unwrap().to_string(),
                     SpecModule {
                         spec,
-                        module: module_name.to_string(),
+                        _module: module_name.to_string(),
                     },
                 );
             }
         }
 
         let mut all_references = vec![];
-        for (_, v) in &self.specs {
+        for v in self.specs.values() {
             let references = Self::get_dependency_for_spec(&v.spec);
             all_references.extend(references);
         }
@@ -122,15 +123,12 @@ impl Generator {
         let mut references = vec![];
 
         for (_, prop) in &any.properties {
-            references.extend(Self::get_references_for_reference_or_box_schema(&prop));
+            references.extend(Self::get_references_for_reference_or_box_schema(prop));
         }
         if any.additional_properties.is_some() {
             let ap = any.additional_properties.as_ref().unwrap();
-            match ap {
-                AdditionalProperties::Schema(s) => {
-                    references.extend(Self::get_references_for_reference_or_schema(&*s))
-                }
-                _ => {}
+            if let AdditionalProperties::Schema(s) = ap {
+                references.extend(Self::get_references_for_reference_or_schema(s))
             }
         }
         references.extend(Self::get_references_for_vec_reference_or_schema(
@@ -161,18 +159,15 @@ impl Generator {
 
                 if o.additional_properties.is_some() {
                     let ap = o.additional_properties.as_ref().unwrap();
-                    match ap {
-                        AdditionalProperties::Schema(s) => {
-                            references.extend(Self::get_references_for_reference_or_schema(&*s))
-                        }
-                        _ => {}
+                    if let AdditionalProperties::Schema(s) = ap {
+                        references.extend(Self::get_references_for_reference_or_schema(s))
                     }
                 }
             }
             Type::Array(a) => {
                 if a.items.is_some() {
                     references.extend(Self::get_references_for_reference_or_box_schema(
-                        &a.items.as_ref().unwrap(),
+                        a.items.as_ref().unwrap(),
                     ));
                 }
             }
@@ -189,9 +184,7 @@ impl Generator {
                 println!("reference : {}", reference);
                 references.push(reference.clone());
             }
-            ReferenceOr::Item(schema) => {
-                references.extend(Self::get_references_for_schema(&*schema))
-            }
+            ReferenceOr::Item(schema) => references.extend(Self::get_references_for_schema(schema)),
         }
         references
     }
@@ -203,9 +196,7 @@ impl Generator {
                 println!("reference : {}", reference);
                 references.push(reference.clone());
             }
-            ReferenceOr::Item(schema) => {
-                references.extend(Self::get_references_for_schema(&schema))
-            }
+            ReferenceOr::Item(schema) => references.extend(Self::get_references_for_schema(schema)),
         }
 
         references
@@ -225,18 +216,57 @@ impl Generator {
         match &schema.schema_kind {
             SchemaKind::Type(t) => references.extend(Self::get_references_for_schema_type(t)),
             SchemaKind::OneOf { one_of } => {
-                references.extend(Self::get_references_for_vec_reference_or_schema(&one_of))
+                references.extend(Self::get_references_for_vec_reference_or_schema(one_of))
             }
             SchemaKind::AnyOf { any_of } => {
-                references.extend(Self::get_references_for_vec_reference_or_schema(&any_of))
+                references.extend(Self::get_references_for_vec_reference_or_schema(any_of))
             }
             SchemaKind::AllOf { all_of } => {
-                references.extend(Self::get_references_for_vec_reference_or_schema(&all_of))
+                references.extend(Self::get_references_for_vec_reference_or_schema(all_of))
             }
             SchemaKind::Not { not } => {
-                references.extend(Self::get_references_for_reference_or_schema(&*not))
+                references.extend(Self::get_references_for_reference_or_schema(not))
             }
             SchemaKind::Any(a) => references.extend(Self::get_references_for_schema_anyschema(a)),
+        }
+
+        references
+    }
+
+    fn get_references_for_media_type(media_type: &MediaType) -> Vec<String> {
+        let mut references = vec![];
+
+        if media_type.schema.is_some() {
+            references.extend(Self::get_references_for_reference_or_schema(
+                media_type.schema.as_ref().unwrap(),
+            ))
+        }
+        references
+    }
+
+    fn get_references_for_request_body(req_body: &RequestBody) -> Vec<String> {
+        let mut references = vec![];
+
+        for media_type in req_body.content.values() {
+            references.extend(Self::get_references_for_media_type(media_type));
+        }
+
+        references
+    }
+
+    fn get_references_for_reference_or_request_body(
+        value: &ReferenceOr<RequestBody>,
+    ) -> Vec<String> {
+        let mut references = vec![];
+
+        match value {
+            ReferenceOr::Reference { reference } => {
+                println!("reference: {}", reference);
+                references.push(reference.clone());
+            }
+            ReferenceOr::Item(req_body) => {
+                references.extend(Self::get_references_for_request_body(req_body));
+            }
         }
 
         references
@@ -258,11 +288,7 @@ impl Generator {
                         }
                         ParameterSchemaOrContent::Content(c) => {
                             for (_, media_type) in c {
-                                if media_type.schema.is_some() {
-                                    references.extend(Self::get_references_for_reference_or_schema(
-                                        &media_type.schema.unwrap(),
-                                    ))
-                                }
+                                references.extend(Self::get_references_for_media_type(&media_type));
                             }
                         }
                     }
@@ -286,16 +312,84 @@ impl Generator {
         references
     }
 
+    fn get_references_for_reference_or_response(value: &ReferenceOr<Response>) -> Vec<String> {
+        let mut references = vec![];
+
+        match value {
+            ReferenceOr::Reference { reference } => {
+                println!("reference: {}", reference);
+                references.push(reference.clone());
+            }
+            ReferenceOr::Item(r) => references.extend(Self::get_references_for_response(r)),
+        }
+
+        references
+    }
+
     fn get_references_for_responses(responses: &Responses) -> Vec<String> {
         let mut references = vec![];
         for (_status_code, response) in &responses.responses {
-            match response {
+            references.extend(Self::get_references_for_reference_or_response(response));
+        }
+
+        if responses.default.is_some() {
+            references.extend(Self::get_references_for_reference_or_response(
+                responses.default.as_ref().unwrap(),
+            ));
+        }
+
+        references
+    }
+
+    fn get_references_for_reference_or_callbacks(
+        callbacks: &IndexMap<String, ReferenceOr<Callback>>,
+    ) -> Vec<String> {
+        let mut references = vec![];
+
+        for (_, callback) in callbacks {
+            match callback {
                 ReferenceOr::Reference { reference } => {
                     println!("reference: {}", reference);
                     references.push(reference.clone());
                 }
-                ReferenceOr::Item(r) => references.extend(Self::get_references_for_response(r)),
+                ReferenceOr::Item(callback_map) => {
+                    for (_, p) in callback_map {
+                        references.extend(Self::get_references_for_path_item(p));
+                    }
+                }
             }
+        }
+
+        references
+    }
+
+    fn get_references_for_path_item(path_item: &PathItem) -> Vec<String> {
+        let mut references = vec![];
+
+        if path_item.get.is_some() {
+            references.extend(Self::get_references_for_operation(
+                path_item.get.as_ref().unwrap(),
+            ));
+        }
+        if path_item.put.is_some() {
+            references.extend(Self::get_references_for_operation(
+                path_item.put.as_ref().unwrap(),
+            ));
+        }
+        if path_item.post.is_some() {
+            references.extend(Self::get_references_for_operation(
+                path_item.post.as_ref().unwrap(),
+            ));
+        }
+        if path_item.delete.is_some() {
+            references.extend(Self::get_references_for_operation(
+                path_item.delete.as_ref().unwrap(),
+            ));
+        }
+        if path_item.patch.is_some() {
+            references.extend(Self::get_references_for_operation(
+                path_item.patch.as_ref().unwrap(),
+            ));
         }
 
         references
@@ -305,6 +399,14 @@ impl Generator {
         let mut references = vec![];
         references.extend(Self::get_references_for_parameters(&op.parameters));
         references.extend(Self::get_references_for_responses(&op.responses));
+        references.extend(Self::get_references_for_reference_or_callbacks(
+            &op.callbacks,
+        ));
+        if op.request_body.is_some() {
+            references.extend(Self::get_references_for_reference_or_request_body(
+                op.request_body.as_ref().unwrap(),
+            ));
+        }
 
         references
     }
@@ -317,35 +419,8 @@ impl Generator {
                     println!("reference: {}", reference);
                     references.push(reference.clone());
                 }
-                ReferenceOr::Item(PathItem {
-                    get,
-                    put,
-                    post,
-                    delete,
-                    patch,
-                    ..
-                }) => {
-                    if get.is_some() {
-                        references
-                            .extend(Self::get_references_for_operation(&get.as_ref().unwrap()));
-                    }
-                    if put.is_some() {
-                        references
-                            .extend(Self::get_references_for_operation(&put.as_ref().unwrap()));
-                    }
-                    if post.is_some() {
-                        references
-                            .extend(Self::get_references_for_operation(&post.as_ref().unwrap()));
-                    }
-                    if delete.is_some() {
-                        references.extend(Self::get_references_for_operation(
-                            &delete.as_ref().unwrap(),
-                        ));
-                    }
-                    if patch.is_some() {
-                        references
-                            .extend(Self::get_references_for_operation(&patch.as_ref().unwrap()));
-                    }
+                ReferenceOr::Item(p) => {
+                    references.extend(Self::get_references_for_path_item(p));
                 }
             }
         }
@@ -356,6 +431,10 @@ impl Generator {
             let components = spec.components.as_ref().unwrap();
             for (_k, schema) in &components.schemas {
                 references.extend(Self::get_references_for_reference_or_schema(schema));
+            }
+
+            for r in components.request_bodies.values() {
+                references.extend(Self::get_references_for_reference_or_request_body(r));
             }
         }
 
