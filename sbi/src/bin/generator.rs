@@ -5,8 +5,22 @@ use sbi5g::Generator;
 fn main() -> std::io::Result<()> {
     let mut generator = Generator::from_path("specs")?;
 
-    generator.generate_all("sbi")?;
-    //generator.generate(&[("TS29518_Namf_Communication.yaml", "amf_communication")])?;
+    generator.generate_all("sbi", /* schema_only */ true)?;
+
+    /*
+    generator.generate(
+        // file_modules
+        &[("TS29571_CommonData.yaml", "common_data")],
+        // aux_files:
+        &[
+            "TS29510_Nnrf_AccessToken.yaml",
+            "TS29514_Npcf_PolicyAuthorization.yaml",
+            "TS29572_Nlmf_Location.yaml",
+        ],
+        // schema_only
+        true,
+    )?;
+    */
 
     eprintln!("generator: {:#?}", generator);
 

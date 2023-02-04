@@ -10,17 +10,19 @@ use openapiv3::*;
 #[derive(Debug, Clone)]
 pub struct Generator {
     specs_dir: PathBuf,
-    specs: HashMap<String, SpecModule>,
+    specs: HashMap<String, SpecModule>, // A HashMap of ModuleName -> Parsed Specs
+    references: HashMap<String, BTreeSet<String>>, // A HashMap of FileName -> References
 }
 
 #[derive(Debug, Clone)]
 struct SpecModule {
+    spec_file_name: String,
     spec: OpenAPI,
     _module: String,
 }
 
 impl Generator {
-    pub fn from_path<P: AsRef<Path>>(specs_dir: P) -> std::io::Result<Self> {
+    pub fn from_path<P: AsRef<Path> + std::cmp::Ord>(specs_dir: P) -> std::io::Result<Self> {
         let specs_dir: PathBuf = specs_dir.as_ref().into();
 
         if !specs_dir.metadata()?.is_dir() {
@@ -32,53 +34,65 @@ impl Generator {
             Ok(Self {
                 specs_dir,
                 specs: HashMap::new(),
+                references: HashMap::new(),
             })
         }
     }
 
-    pub fn generate<P: AsRef<Path>>(&mut self, files_modules: &[(P, &str)]) -> std::io::Result<()> {
+    /// Generate Definitions from the files passed as `(file, module)` tuples.
+    ///
+    /// Additionally, `aux_files` are specified from where referred definitions are 'hand picked'
+    /// so that all the definitions in the original set of `files` can be resolved.
+    ///
+    /// `schema_only` is a switch used for resolving references in the path "/components/schemas"
+    /// only. (This is useful for example when generating data models.)
+    pub fn generate<P>(
+        &mut self,
+        files_modules: &[(P, &str)],
+        aux_files: &[&str],
+        schema_only: bool,
+    ) -> std::io::Result<()>
+    where
+        P: AsRef<Path> + std::cmp::Ord + std::fmt::Debug,
+    {
+        // First we 'simply parse' the specs
         for (entry, module_name) in files_modules {
             let spec = self.parse_spec_from_file(entry)?;
+            let spec_file_name = entry.as_ref().to_str().unwrap().to_string();
             self.specs.insert(
                 entry.as_ref().to_str().unwrap().to_string(),
                 SpecModule {
+                    spec_file_name,
                     spec,
                     _module: module_name.to_string(),
                 },
             );
         }
 
-        let mut all_references = vec![];
-        for v in self.specs.values() {
-            let references = Self::get_dependency_for_spec(&v.spec);
-            all_references.extend(references);
-        }
-
-        let mut uniq = BTreeSet::new();
-        for reference in &all_references {
-            let source = reference.split('#').next().unwrap().to_string();
-            uniq.insert(source);
-        }
-
-        println!(
-            "total_references: {}, uniq: {:#?}",
-            all_references.len(),
-            uniq
-        );
+        // We Now have collected unique references In all files.
+        // Check if missing files if any?
+        self.find_missing_files_if_any(aux_files, schema_only)?;
 
         Ok(())
     }
 
-    pub fn generate_all(&mut self, module_name: &str) -> std::io::Result<()> {
+    pub fn generate_all(&mut self, module_name: &str, schema_only: bool) -> std::io::Result<()> {
+        let mut input_set = BTreeSet::new();
         for entry in self.specs_dir.read_dir()? {
             let entry = entry?;
             let path = entry.path();
 
             if path.is_file() && path.extension().unwrap() == "yaml" {
-                let spec = self.parse_spec_from_file(path.file_name().unwrap())?;
+                let spec_path = path.file_name().unwrap();
+                let spec_path_string = spec_path.to_str().unwrap().to_string();
+                let spec = self.parse_spec_from_file(spec_path)?;
+                let dependent_string = spec_path_string.clone();
+                let spec_file_name = spec_path_string.clone();
+                input_set.insert(dependent_string);
                 self.specs.insert(
-                    path.file_name().unwrap().to_str().unwrap().to_string(),
+                    spec_path_string,
                     SpecModule {
+                        spec_file_name,
                         spec,
                         _module: module_name.to_string(),
                     },
@@ -86,24 +100,61 @@ impl Generator {
             }
         }
 
-        let mut all_references = vec![];
-        for v in self.specs.values() {
-            let references = Self::get_dependency_for_spec(&v.spec);
-            all_references.extend(references);
-        }
+        // Find missing files if any
+        self.find_missing_files_if_any(&[], schema_only)?;
 
-        let mut uniq = BTreeSet::new();
-        for reference in &all_references {
-            let source = reference.split('#').next().unwrap().to_string();
-            uniq.insert(source);
-        }
-
-        println!(
-            "total_references: {}, uniq: {:#?}",
-            all_references.len(),
-            uniq
-        );
         Ok(())
+    }
+
+    fn find_missing_files_if_any(
+        &mut self,
+        aux_files: &[&str],
+        schema_only: bool,
+    ) -> std::io::Result<()> {
+        // First get all references
+        // Now we get All references that are used by any of the specs. This is a bit involved. If
+        // we are generating 'models' only, we can get those for the `components/schemas`  only,
+        for v in self.specs.values() {
+            let references = Self::get_dependency_for_spec(&v.spec, schema_only);
+            let reference_set = BTreeSet::from_iter(references.iter().map(|v| v.clone()));
+            self.references
+                .insert(v.spec_file_name.clone(), reference_set);
+        }
+
+        let mut missing_files = BTreeSet::new();
+        for reference_set in self.references.values() {
+            for reference in reference_set {
+                let split = reference.split("#").collect::<Vec<&str>>();
+                let (referred_file, _referred_ref) = (split[0], split[1]);
+                if self
+                    .references
+                    .keys()
+                    .find(|&file_name| file_name == referred_file)
+                    .is_none()
+                    && aux_files.iter().find(|&&f| f == referred_file).is_none()
+                {
+                    if !referred_file.is_empty() {
+                        missing_files.insert(referred_file.clone());
+                    }
+                }
+            }
+        }
+
+        if missing_files.is_empty() {
+            Ok(())
+        } else {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!(
+                    "Some of the Schema Objects cannot be resolved due to missing Spec Files: {}",
+                    missing_files
+                        .iter()
+                        .cloned()
+                        .collect::<Vec<&str>>()
+                        .join(", ")
+                ),
+            ))
+        }
     }
 
     fn parse_spec_from_file<P: AsRef<Path>>(&self, file: P) -> std::io::Result<OpenAPI> {
@@ -349,7 +400,6 @@ impl Generator {
         for (_, callback) in callbacks {
             match callback {
                 ReferenceOr::Reference { reference } => {
-                    println!("reference: {}", reference);
                     references.push(reference.clone());
                 }
                 ReferenceOr::Item(callback_map) => {
@@ -411,21 +461,8 @@ impl Generator {
         references
     }
 
-    fn get_dependency_for_spec(spec: &OpenAPI) -> Vec<String> {
+    fn get_dependency_for_spec(spec: &OpenAPI, schema_only: bool) -> Vec<String> {
         let mut references = vec![];
-        for path in &spec.paths.paths {
-            match path.1 {
-                openapiv3::ReferenceOr::Reference { reference } => {
-                    println!("reference: {}", reference);
-                    references.push(reference.clone());
-                }
-                ReferenceOr::Item(p) => {
-                    references.extend(Self::get_references_for_path_item(p));
-                }
-            }
-        }
-
-        eprintln!("references total: {}", references.len());
 
         if spec.components.is_some() {
             let components = spec.components.as_ref().unwrap();
@@ -433,8 +470,23 @@ impl Generator {
                 references.extend(Self::get_references_for_reference_or_schema(schema));
             }
 
-            for r in components.request_bodies.values() {
-                references.extend(Self::get_references_for_reference_or_request_body(r));
+            if !schema_only {
+                for r in components.request_bodies.values() {
+                    references.extend(Self::get_references_for_reference_or_request_body(r));
+                }
+            }
+        }
+
+        if !schema_only {
+            for path in &spec.paths.paths {
+                match path.1 {
+                    openapiv3::ReferenceOr::Reference { reference } => {
+                        references.push(reference.clone());
+                    }
+                    ReferenceOr::Item(p) => {
+                        references.extend(Self::get_references_for_path_item(p));
+                    }
+                }
             }
         }
 
