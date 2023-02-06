@@ -12,6 +12,7 @@ pub struct Generator {
     specs_dir: PathBuf,
     specs: HashMap<String, SpecModule>, // A HashMap of ModuleName -> Parsed Specs
     references: HashMap<String, BTreeSet<String>>, // A HashMap of FileName -> References
+    aux_files: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone)]
@@ -35,6 +36,7 @@ impl Generator {
                 specs_dir,
                 specs: HashMap::new(),
                 references: HashMap::new(),
+                aux_files: None,
             })
         }
     }
@@ -73,6 +75,12 @@ impl Generator {
         // Check if missing files if any?
         self.find_missing_files_if_any(aux_files, schema_only)?;
 
+        let _ = self
+            .aux_files
+            .replace(aux_files.iter().map(|&x| x.to_string()).collect());
+
+        self.generate_for_schemas()?;
+
         Ok(())
     }
 
@@ -102,6 +110,8 @@ impl Generator {
 
         // Find missing files if any
         self.find_missing_files_if_any(&[], schema_only)?;
+
+        self.generate_for_schemas()?;
 
         Ok(())
     }
@@ -151,6 +161,73 @@ impl Generator {
                         .iter()
                         .cloned()
                         .collect::<Vec<&str>>()
+                        .join(", ")
+                ),
+            ))
+        }
+    }
+
+    fn generate_for_schemas(&mut self) -> std::io::Result<()> {
+        let aux_map = if self.aux_files.is_some() {
+            let mut aux_map = IndexMap::<String, OpenAPI>::new();
+            for file in self.aux_files.as_ref().unwrap() {
+                let spec = self.parse_spec_from_file(file)?;
+                aux_map.insert(file.to_string(), spec);
+            }
+            Some(aux_map)
+        } else {
+            None
+        };
+
+        let mut unresolved_items = vec![];
+        let mut resolved_items = vec![];
+        for (ref_file_name, reference_set) in &self.references {
+            for reference in reference_set {
+                let file_values = reference.split("#").collect::<Vec<&str>>();
+                let (file, values) = (file_values[0], file_values[1]);
+                let spec = if aux_map.is_some() && !file.is_empty() {
+                    aux_map.as_ref().unwrap().get(file)
+                } else {
+                    let spec_module = if !file.is_empty() {
+                        self.specs.get(file)
+                    } else {
+                        self.specs.get(ref_file_name)
+                    };
+                    if spec_module.is_some() {
+                        Some(&spec_module.unwrap().spec)
+                    } else {
+                        None
+                    }
+                }
+                // Spec has to be Some or else we'd  have gotten missing files error
+                .unwrap();
+
+                // We now have a reference and a spec, let's try to resolve that.
+                let components: _ = reference.rsplit("/").collect::<Vec<_>>();
+                let component = components[0];
+                let schemas = &spec.components.as_ref().unwrap().schemas;
+                let schema = schemas.get(component);
+                match schema.unwrap() {
+                    ReferenceOr::Reference { reference } => {
+                        unresolved_items.push((component.to_string(), reference.to_string()))
+                    }
+                    ReferenceOr::Item(s) => resolved_items.push(component.to_string()),
+                }
+            }
+        }
+
+        if unresolved_items.is_empty() {
+            println!("resolved components: {:#?}", resolved_items);
+            Ok(())
+        } else {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!(
+                    "Unresolved Items: {}",
+                    unresolved_items
+                        .iter()
+                        .map(|r| r.1.clone())
+                        .collect::<Vec<_>>()
                         .join(", ")
                 ),
             ))
