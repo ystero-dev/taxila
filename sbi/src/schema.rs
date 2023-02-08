@@ -76,7 +76,7 @@ fn resolve_schema_component_kind_string(
             .collect::<Vec<_>>();
         let mut enum_variant_tokens = TokenStream::new();
         for var in enum_variants {
-            let var_ident = Ident::new(&var, Span::call_site());
+            let var_ident = Ident::new(&sanitize_str_for_ident(&var), Span::call_site());
             enum_variant_tokens.extend(quote! { #var_ident, });
         }
         quote! {
@@ -121,8 +121,9 @@ fn resolve_schema_component_kind_object(
     let ident = Ident::new(&sanitize_str_for_ident(name), Span::call_site());
     let tokens = if object.additional_properties.is_some() {
         let additional = object.additional_properties.as_ref().unwrap();
-        assert!(inner);
+        println!("name: {}, object: {:#?}", name, object);
         if let AdditionalProperties::Schema(s) = additional {
+            assert!(inner);
             if let ReferenceOr::Reference { reference } = &**s {
                 let referred_type = reference.split('#').last().unwrap();
                 let referred_type = referred_type.split("/").last().unwrap();
@@ -135,9 +136,9 @@ fn resolve_schema_component_kind_object(
                 quote! { () }
             }
         } else {
-            // TODO: Ideally we should not reach here, but let's keep it for now. Later make
-            // this an Err Return.
-            quote! { () }
+            // An Empty Object can be defined with `additionalProperties: false`, so let's give
+            // them one.
+            quote! { #ident: () , }
         }
     } else {
         // This is an Outer object and is resolved as a `struct`.
@@ -169,10 +170,10 @@ fn resolve_schema_component_kind_number(
 }
 
 fn sanitize_str_for_ident(name: &str) -> String {
-    if name.starts_with("5g") {
-        name.replace("5g", "Fiveg")
-    } else if name.starts_with("5G") {
-        name.replace("5G", "FiveG")
+    if name.starts_with("5") {
+        name.replace("5", "Five")
+    } else if name.starts_with("3GPP") {
+        name.replace("3GPP", "THREEG")
     } else {
         name.to_string()
     }

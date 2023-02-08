@@ -241,6 +241,15 @@ impl Generator {
                     println!("skipping generation for local reference: {}", reference);
                     // Lcal reference, do nothing
                     continue;
+                } else {
+                    if self
+                        .references
+                        .keys()
+                        .find(|&file_name| file_name == file)
+                        .is_some()
+                    {
+                        continue;
+                    }
                 }
                 println!("generating for reference: {}", reference);
                 if aux_map.is_some() {
@@ -263,7 +272,12 @@ impl Generator {
                             loop {
                                 let mut inner_refs = vec![];
                                 for schema in &inner_schemas {
-                                    inner_refs.extend(get_references_for_schema(schema));
+                                    let local_refs = get_references_for_schema(schema)
+                                        .iter()
+                                        .filter(|r| r.starts_with('#'))
+                                        .map(|r| r.to_string())
+                                        .collect::<Vec<String>>();
+                                    inner_refs.extend(local_refs);
                                 }
                                 println!(
                                     "loop_count:{}, inner_refs: {:#?}",
@@ -271,12 +285,13 @@ impl Generator {
                                 );
 
                                 for inner in &inner_refs {
-                                    aux_inner_references.insert((file.to_string(), inner.clone()));
+                                    aux_inner_references
+                                        .insert((file.to_string(), inner.to_string()));
                                 }
                                 inner_schemas.drain(..);
-                                for inner in &inner_refs {
+                                for inner in inner_refs {
                                     let (_, schema) =
-                                        get_component_schema_from_reference_in_spec(spec, inner);
+                                        get_component_schema_from_reference_in_spec(spec, &inner);
                                     match schema.unwrap() {
                                         ReferenceOr::Item(s) => inner_schemas.push(s),
                                         _ => {}
@@ -319,7 +334,23 @@ impl Generator {
             for (component, schema) in &components.schemas {
                 match schema {
                     ReferenceOr::Reference { reference } => {
-                        unresolved_items.push((component.to_string(), reference.to_string()))
+                        // We now have a component, which has a reference to a schema within the
+                        // same spec object. We could simply create a Type Alias, but you cannot
+                        // easily to `serde` and stuff like that on those Type Aliases. So we
+                        // simply, create a `struct` / `enum` like referred Schema.
+                        // To do that, we need to get the Schema object first and then use
+                        // 'component' name - The referred component name is ignored
+                        // (`_ignored_component`)
+                        let (_ignore_component, schema) =
+                            get_component_schema_from_reference_in_spec(spec, reference);
+                        match schema.unwrap() {
+                            ReferenceOr::Reference { .. } => {
+                                unreachable!();
+                            }
+                            ReferenceOr::Item(s) => {
+                                resolved_items.push(resolve_schema_component(&component, &s));
+                            }
+                        }
                     }
                     ReferenceOr::Item(s) => {
                         resolved_items.push(resolve_schema_component(component, s));
@@ -327,6 +358,8 @@ impl Generator {
                 }
             }
         }
+
+        eprintln!("unresolved_items {:#?}", unresolved_items);
 
         if unresolved_items.is_empty() {
             println!(
