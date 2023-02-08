@@ -215,8 +215,25 @@ impl Generator {
         // We are going through set of files - given as input to generate and references in each of
         // those files. For any file, the local referene should not be resolved, as those `Schema`
         // objects will be resolved separately when we resolve all `components/schemas/*`.
+        // We will try to resolve the 'external' (that is references that are provided by
+        // 'aux_files'. However one thing needs to be kept in mind here - for references in Aux
+        // files, they themselves 'may' contain another reference in the same aux file, we need to
+        // generate code for that reference as well.
+        //
+        // This will make our module self contained.
+
+        fn get_component_schema_from_reference_in_spec(
+            spec: &OpenAPI,
+            reference: &str,
+        ) -> (String, Option<ReferenceOr<Schema>>) {
+            let components: _ = reference.rsplit("/").collect::<Vec<_>>();
+            let component = components[0];
+            let schemas = &spec.components.as_ref().unwrap().schemas;
+            (component.to_string(), schemas.get(component).cloned())
+        }
+
         let mut aux_inner_references = BTreeSet::<(String, String)>::new();
-        for (ref_file_name, reference_set) in &self.references {
+        for (_ref_file_name, reference_set) in &self.references {
             for reference in reference_set {
                 let file_values = reference.split("#").collect::<Vec<&str>>();
                 let (file, _values) = (file_values[0], file_values[1]);
@@ -230,18 +247,19 @@ impl Generator {
                     let spec = aux_map.as_ref().unwrap().get(file).unwrap();
 
                     // We now have a reference and a spec, let's try to resolve that.
-                    let components: _ = reference.rsplit("/").collect::<Vec<_>>();
-                    let component = components[0];
-                    let schemas = &spec.components.as_ref().unwrap().schemas;
-                    let schema = schemas.get(component);
+                    let (component, schema) =
+                        get_component_schema_from_reference_in_spec(spec, reference);
                     match schema.unwrap() {
                         ReferenceOr::Reference { reference } => {
                             unresolved_items.push((component.to_string(), reference.to_string()))
                         }
                         ReferenceOr::Item(s) => {
-                            resolved_items.push(resolve_schema_component(component, s));
+                            resolved_items.push(resolve_schema_component(&component, &s));
                             let mut inner_schemas = vec![s];
                             let mut loop_count = 1;
+                            // during every 'pass' of the loop, we may discover newer 'local' (ie.
+                            // references within the same file). When no further references are
+                            // discovered, we are done and we break the loop.
                             loop {
                                 let mut inner_refs = vec![];
                                 for schema in &inner_schemas {
@@ -257,10 +275,8 @@ impl Generator {
                                 }
                                 inner_schemas.drain(..);
                                 for inner in &inner_refs {
-                                    let components: _ = inner.rsplit("/").collect::<Vec<_>>();
-                                    let component = components[0];
-                                    let schemas = &spec.components.as_ref().unwrap().schemas;
-                                    let schema = schemas.get(component);
+                                    let (_, schema) =
+                                        get_component_schema_from_reference_in_spec(spec, inner);
                                     match schema.unwrap() {
                                         ReferenceOr::Item(s) => inner_schemas.push(s),
                                         _ => {}
@@ -282,16 +298,13 @@ impl Generator {
             let spec = aux_map.as_ref().unwrap().get(&aux_file).unwrap();
 
             // We now have a reference and a spec, let's try to resolve that.
-            let components: _ = aux_ref.rsplit("/").collect::<Vec<_>>();
-            let component = components[0];
-            let schemas = &spec.components.as_ref().unwrap().schemas;
-            let schema = schemas.get(component);
+            let (component, schema) = get_component_schema_from_reference_in_spec(&spec, &aux_ref);
             match schema.unwrap() {
                 ReferenceOr::Reference { reference } => {
                     unresolved_items.push((component.to_string(), reference.to_string()))
                 }
                 ReferenceOr::Item(s) => {
-                    resolved_items.push(resolve_schema_component(component, s));
+                    resolved_items.push(resolve_schema_component(&component, &s));
                 }
             }
         }
