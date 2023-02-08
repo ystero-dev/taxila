@@ -104,7 +104,7 @@ fn get_references_for_vec_reference_or_schema(refs: &Vec<ReferenceOr<Schema>>) -
 // Get references for a `Schema` Object.
 //
 // Calls the function to get references for each of the `SchemaKind`.
-fn get_references_for_schema(schema: &Schema) -> Vec<String> {
+pub(crate) fn get_references_for_schema(schema: &Schema) -> Vec<String> {
     let mut references = vec![];
     match &schema.schema_kind {
         SchemaKind::Type(t) => references.extend(get_references_for_schema_type(t)),

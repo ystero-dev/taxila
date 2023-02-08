@@ -15,5 +15,7 @@ include = ["src/**/*.rs", "README.md", "Cargo.toml", "LICENSE-MIT", "LICENSE-Apa
 
 [dependencies]
 openapiv3 = { git = "https://github.com/gabhijit/openapiv3"}
-indexmap = "1.0"
-serde_yaml = "0.9"
+indexmap = {version = "1.0"}
+serde_yaml = { version = "0.9"}
+proc-macro2 = { version = "1.0"}
+quote = {version = "1.0"}

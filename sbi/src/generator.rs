@@ -7,7 +7,8 @@ use indexmap::IndexMap;
 #[allow(unused)]
 use openapiv3::*;
 
-use super::utils::get_dependent_refs_for_spec;
+use super::schema::resolve_schema_component;
+use super::utils::{get_dependent_refs_for_spec, get_references_for_schema};
 
 #[derive(Debug, Clone)]
 pub struct Generator {
@@ -210,43 +211,119 @@ impl Generator {
 
         let mut unresolved_items = vec![];
         let mut resolved_items = vec![];
+
+        // We are going through set of files - given as input to generate and references in each of
+        // those files. For any file, the local referene should not be resolved, as those `Schema`
+        // objects will be resolved separately when we resolve all `components/schemas/*`.
+        let mut aux_inner_references = BTreeSet::<(String, String)>::new();
         for (ref_file_name, reference_set) in &self.references {
             for reference in reference_set {
                 let file_values = reference.split("#").collect::<Vec<&str>>();
                 let (file, _values) = (file_values[0], file_values[1]);
-                let spec = if aux_map.is_some() && !file.is_empty() {
-                    aux_map.as_ref().unwrap().get(file)
-                } else {
-                    let spec_module = if !file.is_empty() {
-                        self.specs.get(file)
-                    } else {
-                        self.specs.get(ref_file_name)
-                    };
-                    if spec_module.is_some() {
-                        Some(&spec_module.unwrap().spec)
-                    } else {
-                        None
+                if file.is_empty() {
+                    println!("skipping generation for local reference: {}", reference);
+                    // Lcal reference, do nothing
+                    continue;
+                }
+                println!("generating for reference: {}", reference);
+                if aux_map.is_some() {
+                    let spec = aux_map.as_ref().unwrap().get(file).unwrap();
+
+                    // We now have a reference and a spec, let's try to resolve that.
+                    let components: _ = reference.rsplit("/").collect::<Vec<_>>();
+                    let component = components[0];
+                    let schemas = &spec.components.as_ref().unwrap().schemas;
+                    let schema = schemas.get(component);
+                    match schema.unwrap() {
+                        ReferenceOr::Reference { reference } => {
+                            unresolved_items.push((component.to_string(), reference.to_string()))
+                        }
+                        ReferenceOr::Item(s) => {
+                            resolved_items.push(resolve_schema_component(component, s));
+                            let mut inner_schemas = vec![s];
+                            let mut loop_count = 1;
+                            loop {
+                                let mut inner_refs = vec![];
+                                for schema in &inner_schemas {
+                                    inner_refs.extend(get_references_for_schema(schema));
+                                }
+                                println!(
+                                    "loop_count:{}, inner_refs: {:#?}",
+                                    loop_count, inner_refs
+                                );
+
+                                for inner in &inner_refs {
+                                    aux_inner_references.insert((file.to_string(), inner.clone()));
+                                }
+                                inner_schemas.drain(..);
+                                for inner in &inner_refs {
+                                    let components: _ = inner.rsplit("/").collect::<Vec<_>>();
+                                    let component = components[0];
+                                    let schemas = &spec.components.as_ref().unwrap().schemas;
+                                    let schema = schemas.get(component);
+                                    match schema.unwrap() {
+                                        ReferenceOr::Item(s) => inner_schemas.push(s),
+                                        _ => {}
+                                    }
+                                }
+                                if inner_schemas.is_empty() {
+                                    break;
+                                }
+                                loop_count += 1;
+                            }
+                        }
                     }
                 }
-                // Spec has to be Some or else we'd  have gotten missing files error
-                .unwrap();
+            }
+        }
+        println!("aux_inner_references: {:#?}", aux_inner_references);
 
-                // We now have a reference and a spec, let's try to resolve that.
-                let components: _ = reference.rsplit("/").collect::<Vec<_>>();
-                let component = components[0];
-                let schemas = &spec.components.as_ref().unwrap().schemas;
-                let schema = schemas.get(component);
-                match schema.unwrap() {
+        for (aux_file, aux_ref) in aux_inner_references {
+            let spec = aux_map.as_ref().unwrap().get(&aux_file).unwrap();
+
+            // We now have a reference and a spec, let's try to resolve that.
+            let components: _ = aux_ref.rsplit("/").collect::<Vec<_>>();
+            let component = components[0];
+            let schemas = &spec.components.as_ref().unwrap().schemas;
+            let schema = schemas.get(component);
+            match schema.unwrap() {
+                ReferenceOr::Reference { reference } => {
+                    unresolved_items.push((component.to_string(), reference.to_string()))
+                }
+                ReferenceOr::Item(s) => {
+                    resolved_items.push(resolve_schema_component(component, s));
+                }
+            }
+        }
+
+        for spec_module in self.specs.values() {
+            let spec = &spec_module.spec;
+
+            if spec.components.is_none() {
+                continue;
+            }
+            let components = spec.components.as_ref().unwrap();
+            for (component, schema) in &components.schemas {
+                match schema {
                     ReferenceOr::Reference { reference } => {
                         unresolved_items.push((component.to_string(), reference.to_string()))
                     }
-                    ReferenceOr::Item(_s) => resolved_items.push(component.to_string()),
+                    ReferenceOr::Item(s) => {
+                        resolved_items.push(resolve_schema_component(component, s));
+                    }
                 }
             }
         }
 
         if unresolved_items.is_empty() {
-            println!("resolved components: {:#?}", resolved_items);
+            println!(
+                "resolved components: {:#?}",
+                resolved_items
+                    .into_iter()
+                    .flatten()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>()
+            );
             Ok(())
         } else {
             Err(std::io::Error::new(
