@@ -34,10 +34,13 @@ fn resolve_schema_type_component(
     if let SchemaKind::Type(ref t) = schema.schema_kind {
         match t {
             Type::String(ref s) => {
-                resolve_schema_component_kind_string(name, &schema.schema_data, s)
+                resolve_schema_component_kind_string(name, &schema.schema_data, s, inner)
             }
             Type::Object(ref o) => {
                 resolve_schema_component_kind_object(name, &schema.schema_data, o, inner)
+            }
+            Type::Array(ref a) => {
+                resolve_schema_component_kind_array(name, &schema.schema_data, a, inner)
             }
             Type::Number(ref n) => {
                 resolve_schema_component_kind_number(name, &schema.schema_data, n)
@@ -62,11 +65,16 @@ fn resolve_schema_component_kind_string(
     name: &str,
     _data: &SchemaData,
     s: &StringType,
+    inner: bool,
 ) -> std::io::Result<TokenStream> {
     let ident = Ident::new(&sanitize_str_for_ident(name), Span::call_site());
     let tokens = if s.enumeration.is_empty() {
-        quote! {
-            pub struct #ident(String);
+        if inner {
+            quote! { #ident: String, }
+        } else {
+            quote! {
+                pub struct #ident(String);
+            }
         }
     } else {
         let enum_variants = s
@@ -79,10 +87,14 @@ fn resolve_schema_component_kind_string(
             let var_ident = Ident::new(&sanitize_str_for_ident(&var), Span::call_site());
             enum_variant_tokens.extend(quote! { #var_ident, });
         }
-        quote! {
-            pub enum #ident {
-                #enum_variant_tokens
+        if !inner {
+            quote! {
+                pub enum #ident {
+                    #enum_variant_tokens
+                }
             }
+        } else {
+            quote! { #ident: String, }
         }
     };
 
@@ -121,7 +133,6 @@ fn resolve_schema_component_kind_object(
     let ident = Ident::new(&sanitize_str_for_ident(name), Span::call_site());
     let tokens = if object.additional_properties.is_some() {
         let additional = object.additional_properties.as_ref().unwrap();
-        println!("name: {}, object: {:#?}", name, object);
         if let AdditionalProperties::Schema(s) = additional {
             assert!(inner);
             if let ReferenceOr::Reference { reference } = &**s {
@@ -169,11 +180,52 @@ fn resolve_schema_component_kind_number(
     })
 }
 
+// Resolves `Array` type Schema component
+fn resolve_schema_component_kind_array(
+    name: &str,
+    _data: &SchemaData,
+    array: &ArrayType,
+    inner: bool,
+) -> std::io::Result<TokenStream> {
+    let ident = Ident::new(&sanitize_str_for_ident(name), Span::call_site());
+    if array.items.is_some() {
+        let items_schema = array.items.as_ref().unwrap();
+        match items_schema {
+            ReferenceOr::Reference { reference } => {
+                let referred_type = reference.split('#').last().unwrap();
+                let referred_type = referred_type.split("/").last().unwrap();
+                let value_ident =
+                    Ident::new(&sanitize_str_for_ident(referred_type), Span::call_site());
+
+                if inner {
+                    return Ok(quote! { #ident: Vec<#value_ident> ,  });
+                } else {
+                    return Ok(quote! { struct #ident(Vec<#value_ident>);});
+                }
+            }
+            ReferenceOr::Item(s) => match &s.schema_kind {
+                SchemaKind::Type(t) => match t {
+                    Type::String(_) => {
+                        if inner {
+                            return Ok(quote! { #ident: Vec<String> ,  });
+                        } else {
+                            return Ok(quote! { struct #ident(Vec<String>); });
+                        }
+                    }
+                    _ => todo!(),
+                },
+                _ => todo!(),
+            },
+        }
+    }
+    Ok(quote! {})
+}
+
 fn sanitize_str_for_ident(name: &str) -> String {
     if name.starts_with("5") {
         name.replace("5", "Five")
     } else if name.starts_with("3GPP") {
-        name.replace("3GPP", "THREEG")
+        name.replace("3GPP", "THREEGPP")
     } else {
         name.to_string()
     }
