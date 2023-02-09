@@ -14,6 +14,7 @@ use super::utils::{get_dependent_refs_for_spec, get_references_for_schema};
 pub struct Generator {
     specs_dir: PathBuf,
     specs: HashMap<String, SpecModule>, // A HashMap of ModuleName -> Parsed Specs
+    // TODO: May be we don't need the HashMap, simply BTreeSet is enough
     references: HashMap<String, BTreeSet<String>>, // A HashMap of FileName -> References
     aux_files: Option<Vec<String>>,
 }
@@ -238,7 +239,6 @@ impl Generator {
                 let file_values = reference.split("#").collect::<Vec<&str>>();
                 let (file, _values) = (file_values[0], file_values[1]);
                 if file.is_empty() {
-                    println!("skipping generation for local reference: {}", reference);
                     // Lcal reference, do nothing
                     continue;
                 } else {
@@ -251,7 +251,6 @@ impl Generator {
                         continue;
                     }
                 }
-                println!("generating for reference: {}", reference);
                 if aux_map.is_some() {
                     let spec = aux_map.as_ref().unwrap().get(file).unwrap();
 
@@ -279,7 +278,7 @@ impl Generator {
                                         .collect::<Vec<String>>();
                                     inner_refs.extend(local_refs);
                                 }
-                                println!(
+                                eprintln!(
                                     "loop_count:{}, inner_refs: {:#?}",
                                     loop_count, inner_refs
                                 );
@@ -307,7 +306,6 @@ impl Generator {
                 }
             }
         }
-        println!("aux_inner_references: {:#?}", aux_inner_references);
 
         for (aux_file, aux_ref) in aux_inner_references {
             let spec = aux_map.as_ref().unwrap().get(&aux_file).unwrap();
@@ -358,8 +356,6 @@ impl Generator {
                 }
             }
         }
-
-        eprintln!("unresolved_items {:#?}", unresolved_items);
 
         if unresolved_items.is_empty() {
             println!(

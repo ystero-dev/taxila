@@ -43,12 +43,12 @@ fn resolve_schema_type_component(
                 resolve_schema_component_kind_array(name, &schema.schema_data, a, inner)
             }
             Type::Number(ref n) => {
-                resolve_schema_component_kind_number(name, &schema.schema_data, n)
+                resolve_schema_component_kind_number(name, &schema.schema_data, n, inner)
             }
-            _ => Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Not implemented yet!",
-            )),
+            Type::Integer(ref i) => {
+                resolve_schema_component_kind_integer(name, &schema.schema_data, i, inner)
+            }
+            Type::Boolean { .. } => resolve_schema_component_kind_boolean(name, inner),
         }
     } else {
         Err(std::io::Error::new(
@@ -173,11 +173,32 @@ fn resolve_schema_component_kind_number(
     name: &str,
     _data: &SchemaData,
     _num: &NumberType,
+    inner: bool,
 ) -> std::io::Result<TokenStream> {
     let ident = Ident::new(&sanitize_str_for_ident(name), Span::call_site());
-    Ok(quote! {
-        #ident(f64);
-    })
+    if inner {
+        Ok(quote! { #ident: f64, })
+    } else {
+        Ok(quote! {
+            #ident(f64);
+        })
+    }
+}
+
+fn resolve_schema_component_kind_integer(
+    name: &str,
+    _data: &SchemaData,
+    _num: &IntegerType,
+    inner: bool,
+) -> std::io::Result<TokenStream> {
+    let ident = Ident::new(&sanitize_str_for_ident(name), Span::call_site());
+    if inner {
+        Ok(quote! { #ident: i64, })
+    } else {
+        Ok(quote! {
+            #ident(i64);
+        })
+    }
 }
 
 // Resolves `Array` type Schema component
@@ -219,6 +240,16 @@ fn resolve_schema_component_kind_array(
         }
     }
     Ok(quote! {})
+}
+
+// Resolve a boolean type Schema Component
+fn resolve_schema_component_kind_boolean(name: &str, inner: bool) -> std::io::Result<TokenStream> {
+    let ident = Ident::new(&sanitize_str_for_ident(name), Span::call_site());
+    if !inner {
+        Ok(quote! { struct #ident(bool); })
+    } else {
+        Ok(quote! { #ident: bool , })
+    }
 }
 
 fn sanitize_str_for_ident(name: &str) -> String {

@@ -67,7 +67,7 @@ fn get_references_for_reference_or_box_schema(r: &ReferenceOr<Box<Schema>>) -> V
     let mut references = vec![];
     match r {
         ReferenceOr::Reference { reference } => {
-            println!("reference : {}", reference);
+            eprintln!("reference: {}", reference);
             references.push(reference.clone());
         }
         ReferenceOr::Item(schema) => references.extend(get_references_for_schema(schema)),
@@ -80,7 +80,7 @@ fn get_references_for_reference_or_schema(r: &ReferenceOr<Schema>) -> Vec<String
     let mut references = vec![];
     match r {
         ReferenceOr::Reference { reference } => {
-            println!("reference : {}", reference);
+            eprintln!("reference: {}", reference);
             references.push(reference.clone());
         }
         ReferenceOr::Item(schema) => references.extend(get_references_for_schema(schema)),
@@ -155,7 +155,7 @@ fn get_references_for_reference_or_request_body(value: &ReferenceOr<RequestBody>
 
     match value {
         ReferenceOr::Reference { reference } => {
-            println!("reference: {}", reference);
+            eprintln!("reference: {}", reference);
             references.push(reference.clone());
         }
         ReferenceOr::Item(req_body) => {
@@ -174,7 +174,7 @@ fn get_references_for_parameters(params: &Vec<ReferenceOr<Parameter>>) -> Vec<St
     for param in params {
         match param {
             ReferenceOr::Reference { reference } => {
-                println!("reference: {}", reference);
+                eprintln!("reference: {}", reference);
                 references.push(reference.clone());
             }
             ReferenceOr::Item(i) => {
@@ -218,7 +218,7 @@ fn get_references_for_reference_or_response(value: &ReferenceOr<Response>) -> Ve
 
     match value {
         ReferenceOr::Reference { reference } => {
-            println!("reference: {}", reference);
+            eprintln!("reference: {}", reference);
             references.push(reference.clone());
         }
         ReferenceOr::Item(r) => references.extend(get_references_for_response(r)),
