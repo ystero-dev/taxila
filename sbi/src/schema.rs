@@ -5,6 +5,8 @@ use openapiv3::*;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 
+mod strings;
+use strings::resolve_schema_component_kind_string;
 // Returns a TokenStream corresponding to the schema component.
 //
 // Typically this function will be called by `Generator`.
@@ -31,10 +33,12 @@ fn resolve_schema_type_component(
     schema: &Schema,
     inner: bool,
 ) -> std::io::Result<TokenStream> {
+    let ident = Ident::new(&sanitize_str_for_ident(&name), Span::call_site());
     if let SchemaKind::Type(ref t) = schema.schema_kind {
         match t {
             Type::String(ref s) => {
-                resolve_schema_component_kind_string(name, &schema.schema_data, s, inner)
+                let string_tokens = resolve_schema_component_kind_string(&schema.schema_data, s)?;
+                string_tokens.generate(ident, inner)
             }
             Type::Object(ref o) => {
                 resolve_schema_component_kind_object(name, &schema.schema_data, o, inner)
@@ -56,49 +60,6 @@ fn resolve_schema_type_component(
             format!("Schema: {:#?} is not of Kind Type", schema),
         ))
     }
-}
-
-// Resolves the `Type::String(StringType)` component
-//
-// TODO: Handling `schema_data`
-fn resolve_schema_component_kind_string(
-    name: &str,
-    _data: &SchemaData,
-    s: &StringType,
-    inner: bool,
-) -> std::io::Result<TokenStream> {
-    let ident = Ident::new(&sanitize_str_for_ident(name), Span::call_site());
-    let tokens = if s.enumeration.is_empty() {
-        if inner {
-            quote! { #ident: String, }
-        } else {
-            quote! {
-                pub struct #ident(String);
-            }
-        }
-    } else {
-        let enum_variants = s
-            .enumeration
-            .iter()
-            .map(|s| s.as_ref().unwrap())
-            .collect::<Vec<_>>();
-        let mut enum_variant_tokens = TokenStream::new();
-        for var in enum_variants {
-            let var_ident = Ident::new(&sanitize_str_for_ident(&var), Span::call_site());
-            enum_variant_tokens.extend(quote! { #var_ident, });
-        }
-        if !inner {
-            quote! {
-                pub enum #ident {
-                    #enum_variant_tokens
-                }
-            }
-        } else {
-            quote! { #ident: String, }
-        }
-    };
-
-    Ok(tokens)
 }
 
 fn resolve_reference_or_box_schema_component(
