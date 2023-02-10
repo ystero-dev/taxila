@@ -14,6 +14,7 @@ fn main() -> std::io::Result<()> {
         &[
             ("TS29571_CommonData.yaml", "common_data"),
             ("TS29509_Nausf_UEAuthentication.yaml", "common_data"),
+            ("TS29509_Nausf_SoRProtection.yaml", "common_data"),
         ],
         // aux_files:
         &[
