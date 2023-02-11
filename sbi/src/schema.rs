@@ -7,6 +7,9 @@ use quote::quote;
 
 mod strings;
 use strings::resolve_schema_component_kind_string;
+
+mod nums_ints;
+use nums_ints::{resolve_schema_component_kind_integer, resolve_schema_component_kind_number};
 // Returns a TokenStream corresponding to the schema component.
 //
 // Typically this function will be called by `Generator`.
@@ -47,10 +50,12 @@ fn resolve_schema_type_component(
                 resolve_schema_component_kind_array(name, &schema.schema_data, a, inner)
             }
             Type::Number(ref n) => {
-                resolve_schema_component_kind_number(name, &schema.schema_data, n, inner)
+                let nums = resolve_schema_component_kind_number(&schema.schema_data, n)?;
+                nums.generate(ident, inner)
             }
             Type::Integer(ref i) => {
-                resolve_schema_component_kind_integer(name, &schema.schema_data, i, inner)
+                let ints = resolve_schema_component_kind_integer(&schema.schema_data, i)?;
+                ints.generate(ident, inner)
             }
             Type::Boolean { .. } => resolve_schema_component_kind_boolean(name, inner),
         }
@@ -127,39 +132,6 @@ fn resolve_schema_component_kind_object(
         }
     };
     Ok(tokens)
-}
-
-// Resolves the `NumberType`
-fn resolve_schema_component_kind_number(
-    name: &str,
-    _data: &SchemaData,
-    _num: &NumberType,
-    inner: bool,
-) -> std::io::Result<TokenStream> {
-    let ident = Ident::new(&sanitize_str_for_ident(name), Span::call_site());
-    if inner {
-        Ok(quote! { #ident: f64, })
-    } else {
-        Ok(quote! {
-            #ident(f64);
-        })
-    }
-}
-
-fn resolve_schema_component_kind_integer(
-    name: &str,
-    _data: &SchemaData,
-    _num: &IntegerType,
-    inner: bool,
-) -> std::io::Result<TokenStream> {
-    let ident = Ident::new(&sanitize_str_for_ident(name), Span::call_site());
-    if inner {
-        Ok(quote! { #ident: i64, })
-    } else {
-        Ok(quote! {
-            #ident(i64);
-        })
-    }
 }
 
 // Resolves `Array` type Schema component
