@@ -15,6 +15,8 @@ use ngap::messages::r17::{
     ID_ERROR_INDICATION, ID_RAN_UE_NGAP_ID, RAN_UE_NGAP_ID,
 };
 
+use crate::amf::messages::{NasPduMessage, NgapToAmfMessage};
+
 use super::ngap_manager::NgapManager;
 
 impl NgapManager {
@@ -36,6 +38,7 @@ impl NgapManager {
         let mut nas_pdu_present = false;
         let mut user_location_info_present = false;
         let mut rrc_establishment_cause_present = false;
+        let mut nas_pdu = None;
 
         let mut ran_ue_ngap_id = 0;
         for ie in initial_ue.protocol_i_es.0 {
@@ -44,8 +47,9 @@ impl NgapManager {
                     ran_ue_ngap_id = r.0;
                     ran_ue_ngap_id_present = true;
                 }
-                InitialIEValue::Id_NAS_PDU(_nas_pdu) => {
+                InitialIEValue::Id_NAS_PDU(inner_nas_pdu) => {
                     nas_pdu_present = true;
+                    nas_pdu.replace(inner_nas_pdu);
                 }
                 InitialIEValue::Id_UserLocationInformation(_user_location_info) => {
                     user_location_info_present = true;
@@ -76,7 +80,12 @@ impl NgapManager {
             log::warn!("Missing mandatory `RRCEstablishmentCause IE`.");
         }
 
-        self.add_ran_ue(ran_ue_ngap_id, sid);
+        // Now we will send it to NAS Manager (via AMF) to process. Note: `amf_ue_ngap_id` is our
+        // key.
+        let id = self.add_ran_ue(ran_ue_ngap_id, sid);
+        let pdu = nas_pdu.unwrap();
+        let message = NgapToAmfMessage::NasPduMessage(NasPduMessage { id, pdu });
+        let _ = self.ngap_to_amf_tx.as_ref().unwrap().send(message).await;
 
         Ok(())
     }

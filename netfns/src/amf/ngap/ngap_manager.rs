@@ -74,6 +74,7 @@ pub(crate) struct NgapManager {
     pub(crate) next_amf_ngap_ue_id: u64,                   // Used for generating next stream ID
     pub(crate) ran_ues: HashMap<u32, NgapRanUe>,           // Associating RanUe with ran_ue_ngap_id
     pub(crate) amf_ues: HashMap<u64, u32>, // Associating an amf_ue_ngap_id with ran_ue_ngap_id
+    pub(crate) ngap_to_amf_tx: Option<Sender<NgapToAmfMessage>>,
 }
 
 impl NgapManager {
@@ -121,6 +122,7 @@ impl NgapManager {
             next_amf_ngap_ue_id: 1,
             ran_ues: HashMap::new(),
             amf_ues: HashMap::new(),
+            ngap_to_amf_tx: None,
         })
     }
 
@@ -135,8 +137,10 @@ impl NgapManager {
     pub(in crate::amf) async fn run(
         mut self,
         mut amf_to_ngap_rx: Receiver<AmfToNgapMessage>,
-        _ngap_to_amf_tx: Sender<NgapToAmfMessage>,
+        ngap_to_amf_tx: Sender<NgapToAmfMessage>,
     ) -> std::io::Result<()> {
+        let _ = self.ngap_to_amf_tx.replace(ngap_to_amf_tx);
+
         let (tx, mut rx) = mpsc::channel::<RanConnToNgapMgrMessage>(10);
         let mut tasks = vec![];
         loop {
@@ -267,16 +271,21 @@ impl NgapManager {
         }
     }
 
-    pub(in crate::amf::ngap) fn add_ran_ue(&mut self, ran_ngap_ue_id: u32, input_stream: u16) {
+    // Returns the `amf_ue_ngap_id` created to the caller - so caller can use it.
+    pub(in crate::amf::ngap) fn add_ran_ue(
+        &mut self,
+        ran_ngap_ue_id: u32,
+        input_stream: u16,
+    ) -> u64 {
+        let amf_ngap_ue_id = self.next_amf_ngap_ue_id;
         let ran_ue = NgapRanUe {
             ran_ngap_ue_id,
             input_stream,
             output_stream: self.next_ue_stream,
-            amf_ngap_ue_id: self.next_amf_ngap_ue_id,
+            amf_ngap_ue_id,
         };
         self.ran_ues.insert(ran_ngap_ue_id, ran_ue);
-        self.amf_ues
-            .insert(self.next_amf_ngap_ue_id, ran_ngap_ue_id);
+        self.amf_ues.insert(amf_ngap_ue_id, ran_ngap_ue_id);
 
         log::info!(
             "Added New Ran UE: ran_ngap_ue_id:{}, ran_amf_ue_id:{}, output_stream: {}",
@@ -285,8 +294,11 @@ impl NgapManager {
             self.next_ue_stream
         );
 
+        // Send the NAS
         // TODO: Get a proper pool allocator
         self.next_ue_stream += 1;
         self.next_amf_ngap_ue_id += 1;
+
+        amf_ngap_ue_id
     }
 }

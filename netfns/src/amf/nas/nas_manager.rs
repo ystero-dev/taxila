@@ -5,6 +5,10 @@
 
 use tokio::sync::mpsc::{Receiver, Sender};
 
+use nas::messages::{
+    headers::NasMessageHeader, RegistrationRequest, MM_MSG_TYPE_REGISTRATION_REQUEST,
+};
+
 use crate::amf::config::AmfConfig;
 use crate::amf::messages::{AmfToNasMessage, NasToAmfMessage};
 
@@ -25,9 +29,23 @@ impl NasManager {
     ) -> std::io::Result<()> {
         loop {
             tokio::select! {
-                Some(_) = amf_to_nas_rx.recv() => {
-                    log::debug!("Received Message from AMF");
-                    break;
+                Some(msg) = amf_to_nas_rx.recv() => {
+                    match msg {
+                        AmfToNasMessage::Signal(_) => {
+                            log::debug!("Received Signal Message from AMF");
+                            break;
+                        }
+                        AmfToNasMessage::NasPduMessage(msg) => {
+                            log::debug!("received NAS PDU Message from AMF: {:#?}", msg);
+                            let (header, decoded) = NasMessageHeader::decode(&msg.pdu.0)?;
+                            if let NasMessageHeader::Mm(header) = header {
+                                if header.message_type == MM_MSG_TYPE_REGISTRATION_REQUEST {
+                                    let (reg_request, decoded) = RegistrationRequest::decode(&msg.pdu.0)?;
+                                    log::debug!("Reg Request: {:#?}", reg_request);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

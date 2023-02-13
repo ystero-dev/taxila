@@ -4,7 +4,9 @@ use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::mpsc::{self, Sender};
 
 use super::config::AmfConfig;
-use super::messages::{AmfToNasMessage, AmfToNgapMessage, NasToAmfMessage, NgapToAmfMessage};
+use super::messages::{
+    AmfToNasMessage, AmfToNgapMessage, NasPduMessage, NasToAmfMessage, NgapToAmfMessage,
+};
 use super::nas::nas_manager::NasManager;
 use super::ngap::ngap_manager::NgapManager;
 
@@ -60,7 +62,14 @@ impl Amf {
 
         loop {
             tokio::select! {
-                Some(_) = ngap_to_amf_rx.recv() => {
+                Some(msg) = ngap_to_amf_rx.recv() => {
+                    match msg {
+                        NgapToAmfMessage::NasPduMessage(nas_pdu_msg) => {
+                            let msg = AmfToNasMessage::NasPduMessage(nas_pdu_msg);
+                            let _ = self.amf_to_nas_tx.as_ref().unwrap().send(msg).await;
+                        }
+                        _ => {}
+                    }
                 }
                 Some(_) = nas_to_amf_rx.recv() => {
                 }

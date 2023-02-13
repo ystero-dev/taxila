@@ -1,10 +1,19 @@
 //! Message Definitions for Messages sent by Individual Tasks
 
+use ngap::messages::r17::NAS_PDU;
 use sctp_rs::{AssociationId, ReceivedData, SendData};
 
 // Message sent by NGAP Task to AMF
-#[derive(Debug)]
-pub(crate) enum NgapToAmfMessage {}
+#[derive(Debug, Clone)]
+pub(crate) enum NgapToAmfMessage {
+    NasPduMessage(NasPduMessage),
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct NasPduMessage {
+    pub(crate) id: u64,
+    pub(crate) pdu: NAS_PDU,
+}
 
 // Message sent to NGAP by RAN Connection Task
 #[derive(Debug, Clone)]
@@ -38,11 +47,12 @@ pub(crate) struct SendDataMessage {
 }
 
 // Message Sent from AMF to NAS Task
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) enum AmfToNasMessage {
     Signal(i32),
+    NasPduMessage(NasPduMessage),
 }
 
 // Message Sent from NAS to AMF
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) enum NasToAmfMessage {}

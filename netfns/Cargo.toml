@@ -12,6 +12,7 @@ license = "AGPL-3.0-or-later"
 [dependencies]
 asn1-codecs = "0.5"
 ngap = { version = "0.0.1", path = "../ngap" }
+nas = { version = "0.0.1", path = "../nas" }
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9"
 log = "0.4"
