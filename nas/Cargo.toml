@@ -1,6 +1,6 @@
 [package]
 name = "nas"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
 description = "Implementation of 5G NAS Messages in Rust (3GPP 24.501 R17)."
 license = "Apache-2-or-MIT"

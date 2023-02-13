@@ -32,6 +32,8 @@ impl RegistrationRequest {
         let (header, header_decoded) = Nas5gMmMessageHeader::decode(&data[decoded..])?;
         decoded += header_decoded;
 
+        assert_eq!(header.message_type, super::MM_MSG_TYPE_REGISTRATION_REQUEST);
+
         let (req_type, req_type_decoded) =
             FivegRegistrationType::decode(&data[decoded..], false, false)?;
         decoded += req_type_decoded;
@@ -101,5 +103,14 @@ mod tests {
 
         let result = RegistrationRequest::decode(&data);
         assert!(result.is_ok(), "{:#?}", result.err().unwrap());
+
+        let (reg_request, _decoded) = result.unwrap();
+        assert!(matches!(
+            reg_request,
+            RegistrationRequest {
+                header: Nas5gMmMessageHeader { .. },
+                ..
+            }
+        ));
     }
 }
