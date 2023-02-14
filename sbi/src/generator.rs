@@ -1,7 +1,9 @@
 //! Rust code generator for the 5G Service Based Interface data definitions and service stubs.
 
 use std::collections::{BTreeSet, HashMap};
+use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 
 use indexmap::IndexMap;
 #[allow(unused)]
@@ -368,14 +370,18 @@ impl Generator {
         }
 
         if unresolved_items.is_empty() {
-            println!(
-                "resolved components: {:#?}",
-                resolved_items
-                    .into_iter()
-                    .flatten()
-                    .map(|s| s.to_string())
-                    .collect::<Vec<_>>()
-            );
+            let mut code = resolved_items
+                .into_iter()
+                .flatten()
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>();
+
+            code.sort();
+            let code = code.join("\n");
+
+            let code = self.rustfmt_generated_code(&code)?;
+
+            println!("code: {}", code);
             Ok(())
         } else {
             Err(std::io::Error::new(
@@ -406,5 +412,36 @@ impl Generator {
             }
         }
         ("".to_string(), None)
+    }
+
+    fn rustfmt_generated_code(&self, code: &str) -> std::io::Result<String> {
+        let rustfmt_binary = "rustfmt"; // TODO: Get from `env` , 'custom path' etc.
+        let mut cmd = Command::new(rustfmt_binary);
+
+        cmd.stdin(Stdio::piped()).stdout(Stdio::piped());
+
+        let mut child = cmd.spawn()?;
+        let mut child_stdin = child.stdin.take().unwrap();
+        let mut child_stdout = child.stdout.take().unwrap();
+
+        let code = code.to_owned();
+        let stdin_handle =
+            ::std::thread::spawn(move || match child_stdin.write_all(code.as_bytes()) {
+                Ok(_) => code,
+                Err(_) => "write error in rustfmt".to_owned(),
+            });
+
+        let mut output = vec![];
+        std::io::copy(&mut child_stdout, &mut output)?;
+
+        let status = child.wait()?;
+
+        match String::from_utf8(output) {
+            Ok(formatted_output) => match status.code() {
+                Some(0) => Ok(formatted_output),
+                _ => todo!(),
+            },
+            _ => Ok(stdin_handle.join().unwrap()),
+        }
     }
 }

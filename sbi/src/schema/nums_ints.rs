@@ -20,7 +20,7 @@ impl ResolvedNumber {
 
     pub(super) fn generate(&self, ident: Ident, inner: bool) -> std::io::Result<TokenStream> {
         if inner {
-            Ok(quote! { #ident: f64 , })
+            Ok(quote! { f64 , })
         } else {
             Ok(quote! { pub struct #ident(f64); })
         }
@@ -43,7 +43,7 @@ impl ResolvedInteger {
 
     pub(super) fn generate(&self, ident: Ident, inner: bool) -> std::io::Result<TokenStream> {
         if inner {
-            Ok(quote! { #ident: i64 , })
+            Ok(quote! { i64 , })
         } else {
             Ok(quote! { pub struct #ident(i64); })
         }
