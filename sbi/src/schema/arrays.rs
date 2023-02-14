@@ -47,7 +47,7 @@ impl ResolvedArrayType {
     pub(super) fn generate(self, ident: Ident, inner: bool) -> std::io::Result<TokenStream> {
         let arr_tokens = self.tokens;
         if inner {
-            Ok(quote! {#arr_tokens , })
+            Ok(quote! {#arr_tokens })
         } else {
             Ok(quote! { pub struct #ident(#arr_tokens); })
         }

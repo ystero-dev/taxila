@@ -52,10 +52,10 @@ impl ResolvedStringType {
     pub(super) fn generate(&self, ident: Ident, inner: bool) -> std::io::Result<TokenStream> {
         let toks = if inner {
             if self.enum_variants.is_none() {
-                quote! { String ,  }
+                quote! { String }
             } else {
                 // TODO : Make an Enum Type Like #ident + Enum
-                quote! { String ,  }
+                quote! { String }
             }
         } else {
             if self.enum_variants.is_none() {

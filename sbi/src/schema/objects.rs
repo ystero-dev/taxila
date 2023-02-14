@@ -22,7 +22,7 @@ pub(super) fn resolve_schema_component_kind_object(
                 let referred_type = referred_type.split("/").last().unwrap();
                 let value_ident =
                     Ident::new(&sanitize_str_for_ident(referred_type), Span::call_site());
-                quote! { std::collections::HashMap<String, #value_ident> , }
+                quote! { std::collections::HashMap<String, #value_ident> }
             } else {
                 // TODO: Ideally we should not reach here, but let's keep it for now. Later make
                 // this an Err Return.
@@ -38,17 +38,23 @@ pub(super) fn resolve_schema_component_kind_object(
         // This is an Outer object and is resolved as a `struct`.
         let mut obj_tokens = TokenStream::new();
         for (prop_name, prop_value) in &object.properties {
-            eprintln!("prop_name: {}", prop_name);
-            let (property_toks, is_schema) =
-                resolve_reference_or_box_schema_component(prop_name, data, prop_value)?;
             let prop_ident = Ident::new(&sanitize_str_for_ident(prop_name), Span::call_site());
+
+            let (prop_toks, is_schema) =
+                resolve_reference_or_box_schema_component(prop_name, data, prop_value)?;
+            let is_required = object.required.iter().find(|&s| s == prop_name).is_some();
+            let prop_toks = if !is_required {
+                quote! { Option<#prop_toks> }
+            } else {
+                prop_toks
+            };
             if !is_schema {
                 obj_tokens.extend(quote! {
-                    #prop_ident: #property_toks ,
+                    #prop_ident: #prop_toks ,
                 });
             } else {
                 // This happens when additional properties is true
-                obj_tokens.extend(quote! { #prop_ident: #property_toks })
+                obj_tokens.extend(quote! { #prop_ident: #prop_toks , })
             }
         }
         obj_tokens

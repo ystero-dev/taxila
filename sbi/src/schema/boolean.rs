@@ -14,7 +14,7 @@ impl ResolvedBoolean {
         if !inner {
             Ok(quote! { pub struct #ident(bool); })
         } else {
-            Ok(quote! { bool , })
+            Ok(quote! { bool })
         }
     }
 }
