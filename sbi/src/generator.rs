@@ -9,6 +9,8 @@ use indexmap::IndexMap;
 #[allow(unused)]
 use openapiv3::*;
 
+use crate::AnyOfHandler;
+
 use super::schema::resolve_schema_component;
 use super::utils::{get_dependent_refs_for_spec, get_references_for_schema};
 
@@ -64,6 +66,7 @@ impl Generator {
         files_modules: &[(P, &str)],
         aux_files: &[&str],
         schema_only: bool,
+        handlers: Option<Vec<AnyOfHandler>>,
     ) -> std::io::Result<()>
     where
         P: AsRef<Path> + std::cmp::Ord + std::fmt::Debug,
@@ -90,7 +93,7 @@ impl Generator {
             .aux_files
             .replace(aux_files.iter().map(|&x| x.to_string()).collect());
 
-        self.generate_for_schemas()?;
+        self.generate_for_schemas(&handlers)?;
 
         Ok(())
     }
@@ -100,7 +103,12 @@ impl Generator {
     /// module_name: Name of the module to be used for output
     /// schema_only: Flag selecting whether only `components/schemas` to be consiered for code
     /// generation
-    pub fn generate_all(&mut self, module_name: &str, schema_only: bool) -> std::io::Result<()> {
+    pub fn generate_all(
+        &mut self,
+        module_name: &str,
+        schema_only: bool,
+        handlers: Option<Vec<AnyOfHandler>>,
+    ) -> std::io::Result<()> {
         let mut input_set = BTreeSet::new();
         for entry in self.specs_dir.read_dir()? {
             let entry = entry?;
@@ -127,10 +135,16 @@ impl Generator {
         // Find missing files if any
         self.find_missing_files_if_any(&[], schema_only)?;
 
-        self.generate_for_schemas()?;
+        self.generate_for_schemas(&handlers)?;
 
         Ok(())
     }
+
+    /// Adds a handler function to handle `AnyOf` schemas
+    ///
+    /// Typically `anyOf`, `oneOf` and `allOf` components are where usually the quirks of the
+    /// specifications are there. To deal with such situations, it's better to ask the users of the
+    /// API to provide them.
 
     // Parses the OpenAPI specification from a Yaml File. Errors out on any error.
     fn parse_spec_from_file<P: AsRef<Path>>(&self, file: P) -> std::io::Result<OpenAPI> {
@@ -200,7 +214,10 @@ impl Generator {
     }
 
     // The actual function that generates the code for schemas.
-    fn generate_for_schemas(&mut self) -> std::io::Result<()> {
+    fn generate_for_schemas(
+        &mut self,
+        handlers: &Option<Vec<AnyOfHandler>>,
+    ) -> std::io::Result<()> {
         let aux_map = if self.aux_files.is_some() {
             let mut aux_map = IndexMap::<String, OpenAPI>::new();
             for file in self.aux_files.as_ref().unwrap() {
@@ -265,7 +282,7 @@ impl Generator {
                         unresolved_items.push((component.to_string(), reference.to_string()))
                     }
                     ReferenceOr::Item(s) => {
-                        resolved_items.push(resolve_schema_component(&component, &s));
+                        resolved_items.push(resolve_schema_component(&component, &s, handlers));
                         let mut inner_schemas = vec![s];
                         let mut loop_count = 1;
                         // during every 'pass' of the loop, we may discover newer 'local'
@@ -316,7 +333,7 @@ impl Generator {
                     unresolved_items.push((component.to_string(), reference.to_string()))
                 }
                 ReferenceOr::Item(s) => {
-                    resolved_items.push(resolve_schema_component(&component, &s));
+                    resolved_items.push(resolve_schema_component(&component, &s, handlers));
                 }
             }
         }
@@ -358,12 +375,13 @@ impl Generator {
                                 unreachable!();
                             }
                             ReferenceOr::Item(s) => {
-                                resolved_items.push(resolve_schema_component(&component, &s));
+                                resolved_items
+                                    .push(resolve_schema_component(&component, &s, handlers));
                             }
                         }
                     }
                     ReferenceOr::Item(s) => {
-                        resolved_items.push(resolve_schema_component(component, s));
+                        resolved_items.push(resolve_schema_component(component, s, handlers));
                     }
                 }
             }

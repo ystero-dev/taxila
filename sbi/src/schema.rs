@@ -20,15 +20,24 @@ use arrays::resolve_schema_component_kind_array;
 mod boolean;
 use boolean::resolve_schema_component_kind_boolean;
 
+mod anyof;
+use anyof::resolve_schema_component_anyof;
+
+pub type AnyOfHandler = fn(name: &str, anyof: &SchemaKind) -> std::io::Result<TokenStream>;
+
 // Returns a TokenStream corresponding to the schema component.
 //
 // Typically this function will be called by `Generator`.
 pub(crate) fn resolve_schema_component(
     name: &str,
     schema: &Schema,
+    anyof_handlers: &Option<Vec<AnyOfHandler>>,
 ) -> std::io::Result<TokenStream> {
     match &schema.schema_kind {
         SchemaKind::Type(_) => resolve_schema_type_component(name, schema, false),
+        SchemaKind::AnyOf { any_of } => {
+            resolve_anyof_schema_components(name, &schema.schema_kind, anyof_handlers)
+        }
         _ => Err(std::io::Error::new(
             std::io::ErrorKind::Other,
             "Not implemented yet!",
@@ -99,21 +108,38 @@ fn resolve_reference_or_box_schema_component(
     }
 }
 
-fn sanitize_str_for_ident(name: &str) -> String {
-    if name.starts_with("5") {
-        name.replace("5", "Five")
+/// Function used for sanitizing Idents and Struct field values.
+pub fn sanitize_str_for_ident(name: &str) -> String {
+    if name.parse::<u64>().is_ok() {
+        sanitize_keywords(&format!("Int{}", name).replace("-", "_"))
+    } else if name.starts_with("5q") {
+        name.replace("5q", "Fiveq")
+    } else if name.starts_with("5Q") {
+        name.replace("5Q", "FiveQ")
+    } else if name.starts_with("5g") {
+        name.replace("5g", "Fiveg")
+    } else if name.starts_with("5G") {
+        name.replace("5G", "FIVEG")
     } else if name.starts_with("3GPP") {
         name.replace("3GPP", "THREEGPP")
     } else {
-        sanitize_keywords(name)
+        sanitize_keywords(&name.replace('-', "_").trim_matches('"'))
     }
 }
 
 fn sanitize_keywords(name: &str) -> String {
-    let keywords = vec!["type", "self"];
+    let keywords = vec!["type", "self", "move"];
     let mut name = name.to_string();
     if keywords.iter().find(|&s| s == &name).is_some() {
         name += "_";
     }
     name
+}
+
+fn resolve_anyof_schema_components(
+    name: &str,
+    any_of: &SchemaKind,
+    handlers: &Option<Vec<AnyOfHandler>>,
+) -> std::io::Result<TokenStream> {
+    resolve_schema_component_anyof(name, any_of, &handlers.as_ref().unwrap())
 }

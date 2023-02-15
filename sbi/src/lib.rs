@@ -6,3 +6,4 @@ pub use generator::Generator;
 mod utils;
 
 mod schema;
+pub use schema::{sanitize_str_for_ident, AnyOfHandler};
