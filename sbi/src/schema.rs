@@ -35,7 +35,7 @@ pub(crate) fn resolve_schema_component(
 ) -> std::io::Result<TokenStream> {
     match &schema.schema_kind {
         SchemaKind::Type(_) => resolve_schema_type_component(name, schema, false),
-        SchemaKind::AnyOf { any_of } => {
+        SchemaKind::AnyOf { .. } => {
             resolve_anyof_schema_components(name, &schema.schema_kind, anyof_handlers)
         }
         _ => Err(std::io::Error::new(

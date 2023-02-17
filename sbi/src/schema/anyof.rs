@@ -1,6 +1,6 @@
 //! handling of `AnyOf` Schemas
 
-use openapiv3::{ReferenceOr, Schema, SchemaKind};
+use openapiv3::SchemaKind;
 use proc_macro2::TokenStream;
 
 use crate::AnyOfHandler;

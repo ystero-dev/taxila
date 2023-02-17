@@ -1,0 +1,14 @@
+[package]
+name = "security-3gpp"
+version = "0.0.1"
+edition = "2021"
+authors = ["Abhijit Gadgil <gabhijit@iitbombay.org>"]
+description = "A common crate for ciphering and integrity protection algorithms used in 3gpp."
+keywords = ["3gpp", "security", "aes"]
+repository = "https://github.com/gabhijit/taxila.git"
+license = "Apache-2.0 OR MIT"
+readme = "README.md"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
