@@ -1,14 +1,7 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
+//! Functionality related to implementation of 3GPP Security Key Derivation Functions, Ciphering
+//! and Integrity Protection algorithms etc.
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+mod kdf;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+#[doc(inline)]
+pub use kdf::{kdf_common, KdfParam};
