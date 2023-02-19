@@ -6,17 +6,12 @@
 /// KDF Parameter: Actual Parameter used by a KDF
 #[derive(Debug, Clone)]
 pub struct KdfParam<'a> {
-    pub param: &'a [u8],
-    pub len: u16,
+    param: &'a [u8],
+    len: u16,
 }
 
 impl<'a> KdfParam<'a> {
-    pub fn into_bytes(&self) -> Vec<u8> {
-        let mut out = self.param.to_vec();
-        out.extend(self.len.to_be_bytes());
-        out
-    }
-
+    /// Generate a [`KdfParam`] from a string literal (or reference to a `String`).
     pub fn from_str(string: &'a str) -> Self {
         let bytes = string.as_bytes();
         Self {
@@ -25,11 +20,20 @@ impl<'a> KdfParam<'a> {
         }
     }
 
+    /// Generate a [`KdfParam`] from a slice of `u8`.
     pub fn from_bytes(bytes: &'a [u8]) -> Self {
         Self {
             param: bytes,
             len: bytes.len() as u16,
         }
+    }
+
+    // Internal function used by `kdf_common` to obtain the structure serialized as bytes. First
+    // the payload and then length as Big Endian `u16`.
+    fn into_bytes(&self) -> Vec<u8> {
+        let mut out = self.param.to_vec();
+        out.extend(self.len.to_be_bytes());
+        out
     }
 }
 
