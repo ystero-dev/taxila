@@ -4,4 +4,4 @@
 mod kdf;
 
 #[doc(inline)]
-pub use kdf::{kdf_common, KdfParam};
+pub use kdf::{kdf_common, KdfParam, SecurityKey};

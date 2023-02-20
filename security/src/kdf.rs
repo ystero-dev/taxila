@@ -3,6 +3,8 @@
 //! For All the Integrity and Cipher Keys used in 3GPP, A Common Key Derivation Function is defined
 //! in the Appendix B.2 of 33.222
 
+pub type SecurityKey = [u8; 32];
+
 /// KDF Parameter: Actual Parameter used by a KDF
 #[derive(Debug, Clone)]
 pub struct KdfParam<'a> {
@@ -45,7 +47,7 @@ use sha2::Sha256;
 /// An actual implementation of a Key Derivation Function should use this function for deriving the
 /// required key for specific use. A set of Key Derivation functions used in LTE and 5G are
 /// specified in Appendix A of Specification 33.401
-pub fn kdf_common<'a, T>(key: T, fc: u8, params: &'a [KdfParam]) -> [u8; 32]
+pub fn kdf_common<'a, T>(key: T, fc: u8, params: &'a [KdfParam]) -> SecurityKey
 where
     T: AsRef<[u8]>,
 {
