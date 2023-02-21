@@ -75,7 +75,7 @@ pub fn nas_integrity_algorithm_key(
     kdf[16..].try_into().unwrap()
 }
 
-/// Encrypt and/or Decrypt a given NAS packet based on Algorithm Identity and given NAS Key and
+/// Encrypt and/or Decrypt a given NAS payload based on Algorithm Identity and given NAS Key and
 /// other parameters
 pub fn nas_encrypt_payload(
     key: NasKey,
@@ -85,5 +85,47 @@ pub fn nas_encrypt_payload(
     downlink: bool,
     payload: &[u8],
 ) -> Vec<u8> {
-    todo!();
+    let mut iv = vec![0_u8; 16];
+    let count_bytes = count.to_be_bytes();
+    iv.splice(0..4, count_bytes);
+    iv[4] = bearer << 3;
+    if downlink {
+        iv[4] |= 0x04;
+    }
+    let iv = iv.try_into().unwrap();
+
+    match algo_identity {
+        NasEncryptionAlgoIdentity::Nea0 => payload.to_vec(),
+        NasEncryptionAlgoIdentity::Nea2 => security_3gpp::encrypt_aes128_ctr(key, iv, payload),
+        _ => todo!(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    fn test_set_1_33_401_c1() {
+        let key = hex::decode("d3c5d592327fb11c4035c6680af8c6d1").unwrap();
+        let count = 0x398a59b4_u32;
+        let bearer = 0x15_u8;
+        let downlink = true;
+        let payload =
+            hex::decode("981ba6824c1bfb1ab485472029b71d808ce33e2cc3c0b5fc1f3de8a6dc66b1f0")
+                .unwrap();
+
+        let result = super::nas_encrypt_payload(
+            key.try_into().unwrap(),
+            super::NasEncryptionAlgoIdentity::Nea2,
+            count,
+            bearer,
+            downlink,
+            &payload,
+        );
+
+        assert!(
+            "e9fed8a63d155304d71df20bf3e82214b20ed7dad2f233dc3c22d7bdeeed8e78"
+                == hex::encode(result)
+        );
+    }
 }
