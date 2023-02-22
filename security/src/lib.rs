@@ -7,4 +7,4 @@ mod kdf;
 pub use kdf::{kdf_common, KdfParam, SecurityKey};
 
 mod aes_internal;
-pub use aes_internal::{encrypt_aes128_ctr, AesIv, AesKey};
+pub use aes_internal::{encrypt_aes128_ctr, mac_aes128_cmac, AesIv, AesKey};

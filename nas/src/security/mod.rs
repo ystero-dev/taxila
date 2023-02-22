@@ -41,6 +41,9 @@ pub enum NasIntegrityAlgoIdentity {
 /// NAS Key Type: The 128 bit key used by Encryption or Identity Algorithms
 pub type NasKey = [u8; 16];
 
+/// NAS MAC Type: The 32 bit array resulting from MAC calculation.
+pub type NasMac = [u8; 4];
+
 /// Obtain the Key for Encryption Algorithm for NAS
 pub fn nas_encryption_algorithm_key(
     input_key: security_3gpp::SecurityKey,
@@ -101,6 +104,33 @@ pub fn nas_encrypt_payload(
     }
 }
 
+/// Calculate Message Authenticity Code for NAS using a given NAS Key for Integrity Protection
+pub fn nas_calculate_mac(
+    key: NasKey,
+    algo_identity: NasIntegrityAlgoIdentity,
+    count: u32,
+    bearer: u8,
+    downlink: bool,
+    payload: &[u8],
+) -> NasMac {
+    let mut kv = vec![0_u8; 8];
+    let count_bytes = count.to_be_bytes();
+    kv.splice(0..4, count_bytes);
+    kv[4] = bearer << 3;
+    if downlink {
+        kv[4] |= 0x04;
+    }
+    kv.extend(payload);
+
+    match algo_identity {
+        NasIntegrityAlgoIdentity::Nia0 => [0_u8; 4],
+        NasIntegrityAlgoIdentity::Nia2 => security_3gpp::mac_aes128_cmac(key, &kv)[..4]
+            .try_into()
+            .unwrap(),
+        _ => todo!(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -123,6 +153,30 @@ mod tests {
             &payload,
         );
 
+        assert!(
+            "e9fed8a63d155304d71df20bf3e82214b20ed7dad2f233dc3c22d7bdeeed8e78"
+                == hex::encode(result)
+        );
+    }
+
+    #[test]
+    fn test_set_1_33_401_c2() {
+        let key = hex::decode("2bd6459f82c5b300952c49104881ff48").unwrap();
+        let count = 0x38a6f056_u32;
+        let bearer = 0x18_u8;
+        let downlink = false;
+        let payload = hex::decode("3332346263393840").unwrap();
+
+        let result = super::nas_calculate_mac(
+            key.try_into().unwrap(),
+            super::NasIntegrityAlgoIdentity::Nia2,
+            count,
+            bearer,
+            downlink,
+            &payload,
+        );
+
+        eprintln!("result: {}", hex::encode(result));
         assert!(
             "e9fed8a63d155304d71df20bf3e82214b20ed7dad2f233dc3c22d7bdeeed8e78"
                 == hex::encode(result)
