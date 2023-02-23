@@ -160,6 +160,61 @@ mod tests {
     }
 
     #[test]
+    fn test_set_2_33_401_c1() {
+        let key = hex::decode("2bd6459f82c440e0952c49104805ff48").unwrap();
+        let count = 0xc675a64b_u32;
+        let bearer = 0x0c_u8;
+        let downlink = true;
+        let payload =
+            hex::decode("7ec61272743bf1614726446a6c38ced166f6ca76eb5430044286346cef130f92922b03450d3a9975e5bd2ea0eb55ad8e1b199e3ec4316020e9a1b285e762795359b7bdfd39bef4b2484583d5afe082aee638bf5fd5a606193901a08f4ab41aab9b134880")
+                .unwrap();
+
+        let result = super::nas_encrypt_payload(
+            key.try_into().unwrap(),
+            super::NasEncryptionAlgoIdentity::Nea2,
+            count,
+            bearer,
+            downlink,
+            &payload,
+        );
+
+        assert!(
+            "5961605353c64bdca15b195e288553a910632506d6200aa790c4c806c99904cf2445cc50bb1cf168a49673734e081b57e324ce5259c0e78d4cd97b870976503c0943f2cb5ae8f052c7b7d392239587b8956086bcab18836042e2e6ce42432a17105c53d3" == hex::encode(&result),
+            "{}",
+            hex::encode(&result)
+        );
+    }
+
+    #[test]
+    fn test_set_3_33_401_c1() {
+        let key = hex::decode("0a8b6bd8d9b08b08d64e32d1817777fb").unwrap();
+        let count = 0x544d49cd_u32;
+        let bearer = 0x04_u8;
+        let downlink = false;
+        let payload = hex::decode(
+            "fd40a41d370a1f65745095687d47ba1d36d2349e23f644392c8ea9c49d40c13271aff264d0f24800",
+        )
+        .unwrap();
+
+        let result = super::nas_encrypt_payload(
+            key.try_into().unwrap(),
+            super::NasEncryptionAlgoIdentity::Nea2,
+            count,
+            bearer,
+            downlink,
+            &payload,
+        );
+
+        assert!(
+            "75750d37b4bba2a4dedb34235bd68c6645acdaaca48138a3b0c471e2a7041a576423d2927287f0f5"
+                == hex::encode(&result),
+            "{}",
+            hex::encode(&result)
+        );
+    }
+
+    #[ignore]
+    #[test]
     fn test_set_1_33_401_c2() {
         let key = hex::decode("2bd6459f82c5b300952c49104881ff48").unwrap();
         let count = 0x38a6f056_u32;

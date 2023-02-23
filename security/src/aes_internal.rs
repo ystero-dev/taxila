@@ -27,7 +27,7 @@ pub fn mac_aes128_cmac(key: AesKey, message: &[u8]) -> AesMac {
 
     mac.update(message);
 
-    let result = mac.finalize();
+    let result = mac.finalize_reset();
 
     let result = result.into_bytes();
     eprintln!("result : {}", hex::encode(result));
