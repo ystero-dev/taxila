@@ -78,7 +78,7 @@ pub fn nas_integrity_algorithm_key(
     kdf[16..].try_into().unwrap()
 }
 
-/// Encrypt and/or Decrypt a given NAS payload based on Algorithm Identity and given NAS Key and
+/// Encrypt a given NAS payload based on Algorithm Identity and given NAS Key and
 /// other parameters
 pub fn nas_encrypt_payload(
     key: NasKey,
@@ -116,6 +116,21 @@ pub fn nas_encrypt_payload(
         }
         _ => todo!(),
     }
+}
+
+/// Decrypt encrypted NAS payload.
+///
+/// See also [`nas_encrypt_payload`]
+pub fn nas_decrypt_payload(
+    key: NasKey,
+    algo_identity: NasEncryptionAlgoIdentity,
+    count: u32,
+    bearer: u8,
+    downlink: bool,
+    payload: &[u8],
+    bitlen: u32,
+) -> Vec<u8> {
+    nas_encrypt_payload(key, algo_identity, count, bearer, downlink, payload, bitlen)
 }
 
 /// Calculate Message Authenticity Code for NAS using a given NAS Key for Integrity Protection
@@ -160,7 +175,7 @@ mod tests {
         let bitlen = 253;
 
         let result = super::nas_encrypt_payload(
-            key.try_into().unwrap(),
+            key.clone().try_into().unwrap(),
             super::NasEncryptionAlgoIdentity::Nea2,
             count,
             bearer,
@@ -171,8 +186,20 @@ mod tests {
 
         assert!(
             "e9fed8a63d155304d71df20bf3e82214b20ed7dad2f233dc3c22d7bdeeed8e78"
-                == hex::encode(result)
+                == hex::encode(&result)
         );
+
+        // decrypt it and we should get back the payload
+        let result = super::nas_decrypt_payload(
+            key.try_into().unwrap(),
+            super::NasEncryptionAlgoIdentity::Nea2,
+            count,
+            bearer,
+            downlink,
+            &result,
+            bitlen,
+        );
+        assert!(result == payload);
     }
 
     #[test]
