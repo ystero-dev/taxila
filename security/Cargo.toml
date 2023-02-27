@@ -17,4 +17,4 @@ sha2 = "0.10"
 aes = "0.8"
 ctr = "0.9"
 hex = "0.4"
-cmac = { path = "../../temp/RustCryptop/MACs/cmac" }
+cmac = "0.7"

@@ -164,7 +164,7 @@ pub fn nas_calculate_mac(
 mod tests {
 
     #[test]
-    fn test_set_1_33_401_c1() {
+    fn test_33_401_c1() {
         struct TestSet<'ts> {
             name: &'ts str,
             key: [u8; 16],
@@ -300,27 +300,73 @@ mod tests {
         }
     }
 
-    #[ignore]
     #[test]
-    fn test_set_1_33_401_c2() {
-        let key = hex::decode("2bd6459f82c5b300952c49104881ff48").unwrap();
-        let count = 0x38a6f056_u32;
-        let bearer = 0x18_u8;
-        let downlink = false;
-        let payload = hex::decode("3332346263393840").unwrap();
+    fn test_33_401_c2() {
+        struct TestSet<'ts> {
+            name: &'ts str,
+            key: [u8; 16],
+            count: u32,
+            bearer: u8,
+            downlink: bool,
+            payload: &'ts str,
+            mac: &'ts str,
+        }
+        let testsets = vec![
+            TestSet {
+                name: "TestSet 2",
+                key: hex::decode("d3c5d592327fb11c4035c6680af8c6d1")
+                    .unwrap()
+                    .try_into()
+                    .unwrap(),
+                count: 0x398a59b4_u32,
+                bearer: 0x1a_u8,
+                downlink: true,
+                payload: "484583d5afe082ae",
+                mac: "b93787e6",
+            },
+            TestSet {
+                name: "TestSet 5",
+                key: hex::decode("83fd23a244a74cf358da3019f1722635")
+                    .unwrap()
+                    .try_into()
+                    .unwrap(),
+                count: 0x36af6144_u32,
+                bearer: 0x0f_u8,
+                downlink: true,
+                payload:"35c68716633c66fb750c266865d53c11ea05b1e9fa49c8398d48e1efa5909d3947902837f5ae96d5a05bc8d61ca8dbef1b13a4b4abfe4fb1006045b674bb54729304c382be53a5af05556176f6eaa2ef1d05e4b083181ee674cda5a485f74d7a",
+                mac: "e657e182",
+            },
+            TestSet {
+                name: "TestSet 8",
+                key: hex::decode("b3120ffdb2cf6af4e73eaf2ef4ebec69")
+                    .unwrap()
+                    .try_into()
+                    .unwrap(),
+                count: 0x296f393c_u32,
+                bearer: 0x0b_u8,
+                downlink: true,
+                payload: include_str!("ts8.33401.c2.hex").trim(),
+                mac: "ebd5ccb0",
+            },
+        ];
 
-        let result = super::nas_calculate_mac(
-            key.try_into().unwrap(),
-            super::NasIntegrityAlgoIdentity::Nia2,
-            count,
-            bearer,
-            downlink,
-            &payload,
-        );
+        for ts in testsets {
+            let result = super::nas_calculate_mac(
+                ts.key,
+                super::NasIntegrityAlgoIdentity::Nia2,
+                ts.count,
+                ts.bearer,
+                ts.downlink,
+                hex::decode(ts.payload).unwrap().as_ref(),
+            );
 
-        assert!(
-            "e9fed8a63d155304d71df20bf3e82214b20ed7dad2f233dc3c22d7bdeeed8e78"
-                == hex::encode(result)
-        );
+            assert!(
+                hex::encode(result) == ts.mac,
+                "Failure:{}, Expected: {}, Computed:{}",
+                ts.name,
+                ts.mac,
+                hex::encode(&result)
+            );
+        }
     }
 }
