@@ -1,23 +1,12 @@
 /// NAS 5GS Memory Management common header. This header will be part of all NAS Messages from the
 /// 24.501 (Release 17) Section 8.2 5 GS mobility management messages.
+use super::ExtProtoDiscriminator;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Nas5gMmMessageHeader {
     pub extended_protocol_disc: ExtProtoDiscriminator,
     pub sec_header_type: Nas5gSecurityHeader,
     pub message_type: u8,
-}
-
-/// An Enum representing Extended Protocol Discriminator
-/// See 24.007 (Release 17) Section 11.2.3.1A
-#[repr(u8)]
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum ExtProtoDiscriminator {
-    /// 5GS Session Management Messages
-    FivegNasSessionManagementType = 0x2E,
-
-    /// 5GS Mobility Management Messages
-    FivegNasMobilityManagementType = 0x7E,
 }
 
 /// An Enum representing NAS Security Header Type

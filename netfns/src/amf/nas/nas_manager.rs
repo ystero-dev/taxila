@@ -5,8 +5,11 @@
 
 use tokio::sync::mpsc::{Receiver, Sender};
 
+use ngap::messages::r17::NAS_PDU;
+
 use nas::messages::{
-    headers::NasMessageHeader, RegistrationRequest, MM_MSG_TYPE_REGISTRATION_REQUEST,
+    headers::{ExtProtoDiscriminator, Nas5gMmMessageHeader, Nas5gSecurityHeader},
+    RegistrationRequest, MM_MSG_TYPE_REGISTRATION_REQUEST,
 };
 
 use crate::amf::config::AmfConfig;
@@ -36,13 +39,15 @@ impl NasManager {
                             break;
                         }
                         AmfToNasMessage::NasPduMessage(msg) => {
-                            log::debug!("received NAS PDU Message from AMF: {:#?}", msg);
-                            let (header, decoded) = NasMessageHeader::decode(&msg.pdu.0)?;
-                            if let NasMessageHeader::Mm(header) = header {
-                                if header.message_type == MM_MSG_TYPE_REGISTRATION_REQUEST {
-                                    let (reg_request, decoded) = RegistrationRequest::decode(&msg.pdu.0)?;
-                                    log::debug!("Reg Request: {:#?}", reg_request);
+                            // First Octet is Extended Protocol Identity, Use it to call
+                            // appropriate function to decode (and handle) the rest of the message.
+                            let ext_proto_disc = msg.pdu.0[0].into();
+                            log::debug!("received NAS PDU Message from AMF: {:?}", ext_proto_disc);
+                            match ext_proto_disc {
+                                ExtProtoDiscriminator::FivegNasMobilityManagementType => {
+                                    self.decode_nas_mm_message(msg.pdu)?;
                                 }
+                                _ => todo!(),
                             }
                         }
                     }
@@ -51,6 +56,29 @@ impl NasManager {
         }
 
         log::warn!("Closing NAS Manager Task!");
+        Ok(())
+    }
+
+    fn decode_nas_mm_message(&self, nas_pdu: NAS_PDU) -> std::io::Result<()> {
+        let (header, decoded) = Nas5gMmMessageHeader::decode(&nas_pdu.0)?;
+
+        match header.sec_header_type {
+            Nas5gSecurityHeader::PlainText => {
+                Self::decode_nas_message(&header, nas_pdu)?;
+            }
+            _ => todo!(),
+        }
+
+        Ok(())
+    }
+
+    // This is a decrypted message, which will be decoded and right now only printed. Eventually,
+    // this is the message type that will be returned by this function.
+    fn decode_nas_message(header: &Nas5gMmMessageHeader, nas_pdu: NAS_PDU) -> std::io::Result<()> {
+        if header.message_type == MM_MSG_TYPE_REGISTRATION_REQUEST {
+            let (reg_request, decoded) = RegistrationRequest::decode(&nas_pdu.0)?;
+            log::debug!("Reg Request: {:#?}", reg_request);
+        }
         Ok(())
     }
 }

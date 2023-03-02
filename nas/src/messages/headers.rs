@@ -1,23 +1,24 @@
 mod mm;
-pub use mm::{ExtProtoDiscriminator, Nas5gMmMessageHeader, Nas5gSecurityHeader};
+pub use mm::{Nas5gMmMessageHeader, Nas5gSecurityHeader};
 
-#[derive(Debug, Clone)]
-pub enum NasMessageHeader {
-    Mm(Nas5gMmMessageHeader),
+/// An Enum representing Extended Protocol Discriminator
+/// See 24.007 (Release 17) Section 11.2.3.1A
+#[repr(u8)]
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum ExtProtoDiscriminator {
+    /// 5GS Session Management Messages
+    FivegNasSessionManagementType = 0x2E,
+
+    /// 5GS Mobility Management Messages
+    FivegNasMobilityManagementType = 0x7E,
 }
 
-impl NasMessageHeader {
-    pub fn decode(data: &[u8]) -> std::io::Result<(Self, usize)> {
-        if data.is_empty() {
-            Err(std::io::Error::new(std::io::ErrorKind::Other, "Empty Data"))
-        } else {
-            match data[0] {
-                0x7E => {
-                    let (hdr, decoded) = Nas5gMmMessageHeader::decode(data)?;
-                    Ok((Self::Mm(hdr), decoded))
-                }
-                _ => todo!(),
-            }
+impl From<u8> for ExtProtoDiscriminator {
+    fn from(val: u8) -> Self {
+        match val {
+            0x7E => Self::FivegNasMobilityManagementType,
+            0x2E => Self::FivegNasSessionManagementType,
+            _ => unreachable!(),
         }
     }
 }
