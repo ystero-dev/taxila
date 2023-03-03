@@ -3,6 +3,8 @@
 //! This module deals with handling of `NGSetup` messages and sending appropriate response
 //! messages.
 
+use std::collections::HashMap;
+
 use sctp_rs::AssociationId;
 
 // Common NGAP Types
@@ -129,6 +131,7 @@ impl NgapManager {
             supported_ta_list: supported_ta_list.unwrap(),
             name,
             ngsetup_success: true,
+            ran_ues: HashMap::new(),
         };
 
         log::info!(

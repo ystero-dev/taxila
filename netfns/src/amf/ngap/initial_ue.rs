@@ -82,7 +82,7 @@ impl NgapManager {
 
         // Now we will send it to NAS Manager (via AMF) to process. Note: `amf_ue_ngap_id` is our
         // key.
-        let id = self.add_ran_ue(ran_ue_ngap_id, sid);
+        let id = self.add_ran_ue(id, sid, ran_ue_ngap_id);
         let pdu = nas_pdu.unwrap();
         let message = NgapToAmfMessage::NasPduMessage(NasPduMessage { id, pdu });
         let _ = self.ngap_to_amf_tx.as_ref().unwrap().send(message).await;

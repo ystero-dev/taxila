@@ -42,6 +42,7 @@ pub(crate) struct RanNode {
     pub(crate) name: String,
     pub(crate) sctp_id: AssociationId,
     pub(crate) ngsetup_success: bool,
+    pub(crate) ran_ues: HashMap<u32, NgapRanUe>, // Associating RanUe with ran_ue_ngap_id
 }
 
 impl std::fmt::Display for RanNode {
@@ -72,8 +73,7 @@ pub(crate) struct NgapManager {
     pub(crate) ran_nodes: HashMap<AssociationId, RanNode>, // Associating RanNode with SCTP Association ID
     pub(crate) next_ue_stream: u16,                        // Used for generating next stream ID
     pub(crate) next_amf_ngap_ue_id: u64,                   // Used for generating next stream ID
-    pub(crate) ran_ues: HashMap<u32, NgapRanUe>,           // Associating RanUe with ran_ue_ngap_id
-    pub(crate) amf_ues: HashMap<u64, u32>, // Associating an amf_ue_ngap_id with ran_ue_ngap_id
+    pub(crate) amf_ues: HashMap<u64, (AssociationId, u32)>, // Associating an amf_ue_ngap_id with ran_ue_ngap_id
     pub(crate) ngap_to_amf_tx: Option<Sender<NgapToAmfMessage>>,
 }
 
@@ -120,7 +120,6 @@ impl NgapManager {
             ran_nodes: HashMap::new(),
             next_ue_stream: 1,
             next_amf_ngap_ue_id: 1,
-            ran_ues: HashMap::new(),
             amf_ues: HashMap::new(),
             ngap_to_amf_tx: None,
         })
@@ -231,7 +230,8 @@ impl NgapManager {
         let data = codec_data.get_inner().unwrap();
 
         let snd_info = if ran_ue_id.is_some() {
-            let ran_ue = self.ran_ues.get(&ran_ue_id.unwrap());
+            let ran_node = self.ran_nodes.get(&id).unwrap();
+            let ran_ue = ran_node.ran_ues.get(&ran_ue_id.unwrap());
             let sid = if ran_ue.is_none() {
                 log::warn!("RAN UE Node not found, using NON-UE-SIGNALING Stream ID");
                 0
@@ -274,8 +274,9 @@ impl NgapManager {
     // Returns the `amf_ue_ngap_id` created to the caller - so caller can use it.
     pub(in crate::amf::ngap) fn add_ran_ue(
         &mut self,
-        ran_ngap_ue_id: u32,
+        id: AssociationId,
         input_stream: u16,
+        ran_ngap_ue_id: u32,
     ) -> u64 {
         let amf_ngap_ue_id = self.next_amf_ngap_ue_id;
         let ran_ue = NgapRanUe {
@@ -284,8 +285,9 @@ impl NgapManager {
             output_stream: self.next_ue_stream,
             amf_ngap_ue_id,
         };
-        self.ran_ues.insert(ran_ngap_ue_id, ran_ue);
-        self.amf_ues.insert(amf_ngap_ue_id, ran_ngap_ue_id);
+        let mut ran_node = self.ran_nodes.get_mut(&id).unwrap();
+        ran_node.ran_ues.insert(ran_ngap_ue_id, ran_ue);
+        self.amf_ues.insert(amf_ngap_ue_id, (id, ran_ngap_ue_id));
 
         log::info!(
             "Added New Ran UE: ran_ngap_ue_id:{}, ran_amf_ue_id:{}, output_stream: {}",
