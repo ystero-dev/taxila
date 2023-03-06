@@ -34,31 +34,28 @@ impl NgapManager {
 
         log::trace!("Message: {:#?}", initial_ue);
 
-        let mut ran_ue_ngap_id_present = false;
-        let mut nas_pdu_present = false;
-        let mut user_location_info_present = false;
-        let mut rrc_establishment_cause_present = false;
         let mut nas_pdu = None;
+        let mut user_location = None;
+        let mut rrc_establishment_cause = None;
+        let mut ue_context_requested = None;
 
-        let mut ran_ue_ngap_id = 0;
+        let mut ran_ue_ngap_id = None;
         for ie in initial_ue.protocol_i_es.0 {
             match ie.value {
                 InitialIEValue::Id_RAN_UE_NGAP_ID(r) => {
-                    ran_ue_ngap_id = r.0;
-                    ran_ue_ngap_id_present = true;
+                    ran_ue_ngap_id = ran_ue_ngap_id.replace(r.0);
                 }
                 InitialIEValue::Id_NAS_PDU(inner_nas_pdu) => {
-                    nas_pdu_present = true;
                     nas_pdu.replace(inner_nas_pdu);
                 }
-                InitialIEValue::Id_UserLocationInformation(_user_location_info) => {
-                    user_location_info_present = true;
+                InitialIEValue::Id_UserLocationInformation(inner_user_location) => {
+                    user_location.replace(inner_user_location);
                 }
-                InitialIEValue::Id_RRCEstablishmentCause(_rrc_establishment_cause) => {
-                    rrc_establishment_cause_present = true;
+                InitialIEValue::Id_RRCEstablishmentCause(inner_rrc_establishment_cause) => {
+                    rrc_establishment_cause.replace(inner_rrc_establishment_cause);
                 }
-                InitialIEValue::Id_UEContextRequest(_ue_context_requested) => {
-                    // UE context requested.
+                InitialIEValue::Id_UEContextRequest(inner_ue_context_requested) => {
+                    ue_context_requested = ue_context_requested.replace(inner_ue_context_requested);
                 }
                 _ => {
                     log::warn!("Unsupported IE: {:?}", ie);
@@ -66,23 +63,31 @@ impl NgapManager {
             }
         }
 
-        if !ran_ue_ngap_id_present || !nas_pdu_present || !user_location_info_present {
+        if ran_ue_ngap_id.is_none() || nas_pdu.is_none() || user_location.is_none() {
             return self
                 .send_error_indication(
                     id,
-                    ran_ue_ngap_id,
+                    ran_ue_ngap_id.unwrap(),
                     Cause::Protocol(CauseProtocol(CauseProtocol::ABSTRACT_SYNTAX_ERROR_REJECT)),
                 )
                 .await;
         }
 
-        if !rrc_establishment_cause_present {
+        if rrc_establishment_cause.is_none() {
             log::warn!("Missing mandatory `RRCEstablishmentCause IE`.");
         }
 
-        // Now we will send it to NAS Manager (via AMF) to process. Note: `amf_ue_ngap_id` is our
-        // key.
-        let id = self.add_ran_ue(id, sid, ran_ue_ngap_id);
+        // Store the received information in the `NgapRanUe` and then pass the PDU for NAS
+        // processing.
+        let id = self.add_ran_ue(
+            id,
+            sid,
+            ran_ue_ngap_id.unwrap(),
+            user_location.unwrap(),
+            ue_context_requested,
+            rrc_establishment_cause,
+        );
+
         let pdu = nas_pdu.unwrap();
         let message = NgapToAmfMessage::NasPduMessage(NasPduMessage { id, pdu });
         let _ = self.ngap_to_amf_tx.as_ref().unwrap().send(message).await;
