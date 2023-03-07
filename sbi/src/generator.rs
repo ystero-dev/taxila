@@ -282,7 +282,8 @@ impl Generator {
                         unresolved_items.push((component.to_string(), reference.to_string()))
                     }
                     ReferenceOr::Item(s) => {
-                        resolved_items.push(resolve_schema_component(&component, &s, handlers));
+                        resolved_items
+                            .push(resolve_schema_component(&component, &s, handlers, false));
                         let mut inner_schemas = vec![s];
                         let mut loop_count = 1;
                         // during every 'pass' of the loop, we may discover newer 'local'
@@ -333,7 +334,7 @@ impl Generator {
                     unresolved_items.push((component.to_string(), reference.to_string()))
                 }
                 ReferenceOr::Item(s) => {
-                    resolved_items.push(resolve_schema_component(&component, &s, handlers));
+                    resolved_items.push(resolve_schema_component(&component, &s, handlers, false));
                 }
             }
         }
@@ -375,13 +376,15 @@ impl Generator {
                                 unreachable!();
                             }
                             ReferenceOr::Item(s) => {
-                                resolved_items
-                                    .push(resolve_schema_component(&component, &s, handlers));
+                                resolved_items.push(resolve_schema_component(
+                                    &component, &s, handlers, false,
+                                ));
                             }
                         }
                     }
                     ReferenceOr::Item(s) => {
-                        resolved_items.push(resolve_schema_component(component, s, handlers));
+                        resolved_items
+                            .push(resolve_schema_component(component, s, handlers, false));
                     }
                 }
             }

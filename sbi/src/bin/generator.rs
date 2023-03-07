@@ -123,12 +123,13 @@ fn main() -> std::io::Result<()> {
     generator.generate(
         // file_modules
         &[
-            ("TS29571_CommonData.yaml", "common_data"),
+            // ("TS29571_CommonData.yaml", "common_data"),
             ("TS29509_Nausf_UEAuthentication.yaml", "common_data"),
-            ("TS29509_Nausf_SoRProtection.yaml", "common_data"),
+            // ("TS29509_Nausf_SoRProtection.yaml", "common_data"),
         ],
         // aux_files:
         &[
+            "TS29571_CommonData.yaml",
             "TS29510_Nnrf_AccessToken.yaml",
             "TS29514_Npcf_PolicyAuthorization.yaml",
             "TS29572_Nlmf_Location.yaml",

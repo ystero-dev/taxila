@@ -59,11 +59,15 @@ pub(super) fn resolve_schema_component_kind_object(
         }
         obj_tokens
     };
-    Ok(ResolvedObjectType { field_tokens })
+    Ok(ResolvedObjectType {
+        field_tokens,
+        _aux_tokens: TokenStream::new(),
+    })
 }
 
 pub(super) struct ResolvedObjectType {
     field_tokens: TokenStream,
+    _aux_tokens: TokenStream,
 }
 
 impl ResolvedObjectType {

@@ -23,6 +23,9 @@ use boolean::resolve_schema_component_kind_boolean;
 mod anyof;
 use anyof::resolve_schema_component_anyof;
 
+mod oneof;
+use oneof::resolve_schema_component_kind_oneof;
+
 pub type AnyOfHandler = fn(name: &str, anyof: &SchemaKind) -> std::io::Result<TokenStream>;
 
 // Returns a TokenStream corresponding to the schema component.
@@ -32,12 +35,14 @@ pub(crate) fn resolve_schema_component(
     name: &str,
     schema: &Schema,
     anyof_handlers: &Option<Vec<AnyOfHandler>>,
+    inner: bool,
 ) -> std::io::Result<TokenStream> {
     match &schema.schema_kind {
-        SchemaKind::Type(_) => resolve_schema_type_component(name, schema, false),
+        SchemaKind::Type(_) => resolve_schema_type_component(name, schema, inner),
         SchemaKind::AnyOf { .. } => {
             resolve_anyof_schema_components(name, &schema.schema_kind, anyof_handlers)
         }
+        SchemaKind::OneOf { .. } => resolve_oneof_schema_components(name, schema, inner),
         _ => Err(std::io::Error::new(
             std::io::ErrorKind::Other,
             "Not implemented yet!",
@@ -56,8 +61,8 @@ fn resolve_schema_type_component(
     inner: bool,
 ) -> std::io::Result<TokenStream> {
     let ident = Ident::new(&sanitize_str_for_ident(&name), Span::call_site());
-    if let SchemaKind::Type(ref t) = schema.schema_kind {
-        match t {
+    match schema.schema_kind {
+        SchemaKind::Type(ref t) => match t {
             Type::String(ref s) => {
                 let string_tokens = resolve_schema_component_kind_string(&schema.schema_data, s)?;
                 string_tokens.generate(ident, inner)
@@ -82,12 +87,11 @@ fn resolve_schema_type_component(
                 let bool_tokens = resolve_schema_component_kind_boolean()?;
                 bool_tokens.generate(ident, inner)
             }
-        }
-    } else {
-        Err(std::io::Error::new(
+        },
+        _ => Err(std::io::Error::new(
             std::io::ErrorKind::Other,
             format!("Schema: {:#?} is not of Kind Type", schema),
-        ))
+        )),
     }
 }
 
@@ -104,7 +108,7 @@ fn resolve_reference_or_box_schema_component(
                 Ident::new(&sanitize_str_for_ident(referred_type), Span::call_site());
             Ok((quote! { #field_ty_ident }, false))
         }
-        ReferenceOr::Item(ref s) => Ok((resolve_schema_type_component(name, s, true)?, true)),
+        ReferenceOr::Item(ref s) => Ok((resolve_schema_component(name, s, &None, true)?, true)),
     }
 }
 
@@ -142,4 +146,16 @@ fn resolve_anyof_schema_components(
     handlers: &Option<Vec<AnyOfHandler>>,
 ) -> std::io::Result<TokenStream> {
     resolve_schema_component_anyof(name, any_of, &handlers.as_ref().unwrap())
+}
+
+fn resolve_oneof_schema_components(
+    name: &str,
+    schema: &Schema,
+    inner: bool,
+) -> std::io::Result<TokenStream> {
+    let ident = Ident::new(&sanitize_str_for_ident(&name), Span::call_site());
+
+    let one_of_tokens =
+        resolve_schema_component_kind_oneof(&schema.schema_data, &schema.schema_kind)?;
+    one_of_tokens.generate(ident, inner)
 }
