@@ -4,7 +4,7 @@ use openapiv3::*;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 
-use super::sanitize_str_for_ident;
+use super::{sanitize_str_for_ident, ResolvedSchemaComponent};
 
 // Resolves the `Type::String(StringType)` component
 //
@@ -49,7 +49,11 @@ impl ResolvedStringType {
     //
     // Returns a `TokenStream` for the `struct`/`enum`. May also later generate an `impl` block for
     // the structure.
-    pub(super) fn generate(&self, ident: Ident, inner: bool) -> std::io::Result<TokenStream> {
+    pub(super) fn generate(
+        &self,
+        ident: Ident,
+        inner: bool,
+    ) -> std::io::Result<ResolvedSchemaComponent> {
         let toks = if inner {
             if self.enum_variants.is_none() {
                 quote! { String }
@@ -69,6 +73,9 @@ impl ResolvedStringType {
                 }
             }
         };
-        Ok(toks)
+        Ok(ResolvedSchemaComponent {
+            tokens: toks,
+            aux_tokens: TokenStream::new(),
+        })
     }
 }

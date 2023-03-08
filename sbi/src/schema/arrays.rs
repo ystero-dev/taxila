@@ -4,7 +4,7 @@ use openapiv3::{ArrayType, ReferenceOr, SchemaData, SchemaKind, Type};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 
-use super::sanitize_str_for_ident;
+use super::{sanitize_str_for_ident, ResolvedSchemaComponent};
 
 // Resolves `Array` type Schema component
 pub(super) fn resolve_schema_component_kind_array(
@@ -44,12 +44,21 @@ pub(super) struct ResolvedArrayType {
 }
 
 impl ResolvedArrayType {
-    pub(super) fn generate(self, ident: Ident, inner: bool) -> std::io::Result<TokenStream> {
+    pub(super) fn generate(
+        self,
+        ident: Ident,
+        inner: bool,
+    ) -> std::io::Result<ResolvedSchemaComponent> {
         let arr_tokens = self.tokens;
-        if inner {
-            Ok(quote! {#arr_tokens })
+        let tokens = if inner {
+            quote! {#arr_tokens }
         } else {
-            Ok(quote! { pub struct #ident(#arr_tokens); })
-        }
+            quote! { pub struct #ident(#arr_tokens); }
+        };
+
+        Ok(ResolvedSchemaComponent {
+            tokens,
+            aux_tokens: TokenStream::new(),
+        })
     }
 }

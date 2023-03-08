@@ -5,24 +5,44 @@ use openapiv3::*;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 
-use super::sanitize_str_for_ident;
+use super::{sanitize_str_for_ident, ResolvedSchemaComponent};
 
+#[derive(Debug)]
 pub(super) struct ResolvedOneOfType {
     tokens: TokenStream,
 }
 
 impl ResolvedOneOfType {
-    pub(super) fn generate(&self, ident: Ident, inner: bool) -> std::io::Result<TokenStream> {
+    pub(super) fn generate(
+        &self,
+        ident: Ident,
+        inner: bool,
+    ) -> std::io::Result<ResolvedSchemaComponent> {
         let enum_tokens = &self.tokens;
-        if inner {
-            Ok(quote! { #ident })
+        let toks = if inner {
+            quote! { #ident }
         } else {
-            Ok(quote! {
+            quote! {
                 pub enum #ident {
                     #enum_tokens
                 }
-            })
+            }
+        };
+
+        // We need to generate 'aux_tokens' only if it is an `inner` component?
+        let mut aux_tokens = TokenStream::new();
+        if inner {
+            aux_tokens.extend(quote! {
+                pub enum #ident {
+                    #enum_tokens
+                }
+            });
         }
+
+        Ok(ResolvedSchemaComponent {
+            tokens: toks,
+            aux_tokens,
+        })
     }
 }
 pub(super) fn resolve_schema_component_kind_oneof(
@@ -39,7 +59,7 @@ pub(super) fn resolve_schema_component_kind_oneof(
                     let field_ty_ident =
                         Ident::new(&sanitize_str_for_ident(referred_type), Span::call_site());
                     let enum_token = quote! {
-                        #field_ty_ident,
+                        #field_ty_ident(#field_ty_ident),
                     };
                     tokens.extend(enum_token);
                 }

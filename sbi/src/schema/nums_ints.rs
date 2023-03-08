@@ -4,6 +4,8 @@ use openapiv3::{IntegerType, NumberType, SchemaData};
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 
+use super::ResolvedSchemaComponent;
+
 // Resolves the `NumberType`
 pub(super) fn resolve_schema_component_kind_number(
     _data: &SchemaData,
@@ -18,12 +20,20 @@ pub(super) struct ResolvedNumber;
 impl ResolvedNumber {
     // This function is an internal API to generate code for the NumberType
 
-    pub(super) fn generate(&self, ident: Ident, inner: bool) -> std::io::Result<TokenStream> {
-        if inner {
-            Ok(quote! { f64  })
+    pub(super) fn generate(
+        &self,
+        ident: Ident,
+        inner: bool,
+    ) -> std::io::Result<ResolvedSchemaComponent> {
+        let tokens = if inner {
+            quote! { f64  }
         } else {
-            Ok(quote! { pub struct #ident(f64); })
-        }
+            quote! { pub struct #ident(f64); }
+        };
+        Ok(ResolvedSchemaComponent {
+            tokens,
+            aux_tokens: TokenStream::new(),
+        })
     }
 }
 
@@ -41,11 +51,20 @@ pub(super) struct ResolvedInteger;
 impl ResolvedInteger {
     // This function is an internal API to generate code for the NumberType
 
-    pub(super) fn generate(&self, ident: Ident, inner: bool) -> std::io::Result<TokenStream> {
-        if inner {
-            Ok(quote! { i64  })
+    pub(super) fn generate(
+        &self,
+        ident: Ident,
+        inner: bool,
+    ) -> std::io::Result<ResolvedSchemaComponent> {
+        let tokens = if inner {
+            quote! { i64  }
         } else {
-            Ok(quote! { pub struct #ident(i64); })
-        }
+            quote! { pub struct #ident(i64); }
+        };
+
+        Ok(ResolvedSchemaComponent {
+            tokens,
+            aux_tokens: TokenStream::new(),
+        })
     }
 }

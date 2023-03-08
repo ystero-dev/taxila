@@ -392,17 +392,24 @@ impl Generator {
 
         if unresolved_items.is_empty() {
             let mut code = resolved_items
-                .into_iter()
+                .iter()
                 .flatten()
-                .map(|s| s.to_string())
+                .map(|s| s.tokens.to_string())
                 .collect::<Vec<_>>();
 
+            let mut aux_code = resolved_items
+                .into_iter()
+                .flatten()
+                .map(|s| s.aux_tokens.to_string())
+                .collect::<Vec<_>>();
+
+            code.extend(aux_code);
             code.sort();
             let code = code.join("\n");
 
             let code = self.rustfmt_generated_code(&code)?;
 
-            println!("code: {}", code);
+            println!("{}", code);
             Ok(())
         } else {
             Err(std::io::Error::new(

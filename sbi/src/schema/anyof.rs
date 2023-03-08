@@ -5,16 +5,21 @@ use proc_macro2::TokenStream;
 
 use crate::AnyOfHandler;
 
+use super::ResolvedSchemaComponent;
+
 pub(super) fn resolve_schema_component_anyof(
     name: &str,
     any_of: &SchemaKind,
     handlers: &Vec<AnyOfHandler>,
-) -> std::io::Result<TokenStream> {
+) -> std::io::Result<ResolvedSchemaComponent> {
     for handler in handlers {
         eprintln!("resolving name: {}", name);
         let result = handler(name, any_of);
         if result.is_ok() {
-            return result;
+            return Ok(ResolvedSchemaComponent {
+                tokens: result.unwrap(),
+                aux_tokens: TokenStream::new(),
+            });
         }
     }
     eprintln!("name: {}, not resolved yet.", name);
