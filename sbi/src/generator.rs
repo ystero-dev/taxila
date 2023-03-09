@@ -5,7 +5,6 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use indexmap::IndexMap;
 #[allow(unused)]
 use openapiv3::*;
 
@@ -28,6 +27,7 @@ struct SpecModule {
     spec_file_name: String,
     spec: OpenAPI,
     _module: String,
+    input: bool,
 }
 
 impl Generator {
@@ -76,11 +76,12 @@ impl Generator {
             let spec = self.parse_spec_from_file(entry)?;
             let spec_file_name = entry.as_ref().to_str().unwrap().to_string();
             self.specs.insert(
-                entry.as_ref().to_str().unwrap().to_string(),
+                spec_file_name.clone(),
                 SpecModule {
                     spec_file_name,
                     spec,
                     _module: module_name.to_string(),
+                    input: true,
                 },
             );
         }
@@ -93,7 +94,7 @@ impl Generator {
             .aux_files
             .replace(aux_files.iter().map(|&x| x.to_string()).collect());
 
-        self.generate_for_schemas(&handlers)?;
+        self.all_component_schemas(&handlers)?;
 
         Ok(())
     }
@@ -127,6 +128,7 @@ impl Generator {
                         spec_file_name,
                         spec,
                         _module: module_name.to_string(),
+                        input: true,
                     },
                 );
             }
@@ -135,7 +137,7 @@ impl Generator {
         // Find missing files if any
         self.find_missing_files_if_any(&[], schema_only)?;
 
-        self.generate_for_schemas(&handlers)?;
+        self.all_component_schemas(&handlers)?;
 
         Ok(())
     }
@@ -182,16 +184,18 @@ impl Generator {
             for reference in reference_set {
                 let split = reference.split("#").collect::<Vec<&str>>();
                 let (referred_file, _referred_ref) = (split[0], split[1]);
-                if self
-                    .references
-                    .keys()
-                    .find(|&file_name| file_name == referred_file)
-                    .is_none()
+                // Reference starts with a file name
+                if !referred_file.is_empty()
+                    // Refererred file name is present in input reference
+                    && self
+                        .references
+                        .keys()
+                        .find(|&file_name| file_name == referred_file)
+                        .is_none()
+                    // Referred file is present in Aux Files.
                     && aux_files.iter().find(|&&f| f == referred_file).is_none()
                 {
-                    if !referred_file.is_empty() {
-                        missing_files.insert(referred_file.clone());
-                    }
+                    missing_files.insert(referred_file.clone());
                 }
             }
         }
@@ -213,34 +217,13 @@ impl Generator {
         }
     }
 
+    // Get All the Component Schemas for which we will have to generate the structures.
     // The actual function that generates the code for schemas.
-    fn generate_for_schemas(
+    fn all_component_schemas(
         &mut self,
         handlers: &Option<Vec<AnyOfHandler>>,
     ) -> std::io::Result<()> {
-        let aux_map = if self.aux_files.is_some() {
-            let mut aux_map = IndexMap::<String, OpenAPI>::new();
-            for file in self.aux_files.as_ref().unwrap() {
-                let spec = self.parse_spec_from_file(file)?;
-                aux_map.insert(file.to_string(), spec);
-            }
-            Some(aux_map)
-        } else {
-            None
-        };
-
-        let mut unresolved_items = vec![];
-        let mut resolved_items = vec![];
-
-        // We are going through set of files - given as input to generate and references in each of
-        // those files. For any file, the local referene should not be resolved, as those `Schema`
-        // objects will be resolved separately when we resolve all `components/schemas/*`.
-        // We will try to resolve the 'external' (that is references that are provided by
-        // 'aux_files'). However one thing needs to be kept in mind here - for references in aux
-        // files, they themselves 'may' contain another reference in the same aux file, we need to
-        // generate code for that reference as well. If the references in `aux_files` had a
-        // reference outside that `aux_file` we have that somewhere in `aux_files` or else the
-        // missing files would have caught it.
+        // TODO: May be we will move this outside the function. But let's see
         fn get_component_schema_from_reference_in_spec(
             spec: &OpenAPI,
             reference: &str,
@@ -251,39 +234,46 @@ impl Generator {
             (component.to_string(), schemas.get(component).cloned())
         }
 
-        let mut aux_inner_references = BTreeSet::<(String, String)>::new();
-        for (_ref_file_name, reference_set) in &self.references {
-            for reference in reference_set {
-                let file_values = reference.split("#").collect::<Vec<&str>>();
-                let (file, _values) = (file_values[0], file_values[1]);
-                if file.is_empty() {
-                    // Lcal reference, do nothing
-                    continue;
-                } else {
-                    if self
-                        .references
-                        .keys()
-                        .find(|&file_name| file_name == file)
-                        .is_some()
-                    {
-                        continue;
-                    }
-                }
-                if aux_map.is_none() {
-                    continue;
-                }
-                let aux_spec = aux_map.as_ref().unwrap().get(file).unwrap();
+        if self.aux_files.is_some() {
+            for aux_file in self.aux_files.as_ref().unwrap() {
+                let spec = self.parse_spec_from_file(aux_file)?;
+                self.specs.insert(
+                    aux_file.to_string(),
+                    SpecModule {
+                        spec_file_name: aux_file.to_string(),
+                        spec,
+                        _module: "empty".to_string(),
+                        input: false,
+                    },
+                );
+            }
+        };
 
-                // We now have a reference and a spec, let's try to resolve that.
+        let mut unresolved_items = vec![];
+        let mut all_references = BTreeSet::<(String, String)>::new();
+        for (ref_file, reference_set) in &self.references {
+            for reference in reference_set {
+                let parts = reference.split('#').collect::<Vec<&str>>();
+                let (reference_file, reference) = (parts[0], parts[1]);
+                let reference_file = if reference_file.is_empty() {
+                    ref_file
+                } else {
+                    reference_file
+                };
+                eprintln!(
+                    "reference_file: {}, reference: {}",
+                    reference_file, reference
+                );
+                all_references.insert((reference_file.to_string(), reference.to_string()));
+
+                let spec_module = self.specs.get(reference_file).unwrap();
                 let (component, schema) =
-                    get_component_schema_from_reference_in_spec(aux_spec, reference);
+                    get_component_schema_from_reference_in_spec(&spec_module.spec, reference);
                 match schema.unwrap() {
                     ReferenceOr::Reference { reference } => {
                         unresolved_items.push((component.to_string(), reference.to_string()))
                     }
                     ReferenceOr::Item(s) => {
-                        resolved_items
-                            .push(resolve_schema_component(&component, &s, handlers, false));
                         let mut inner_schemas = vec![s];
                         let mut loop_count = 1;
                         // during every 'pass' of the loop, we may discover newer 'local'
@@ -294,20 +284,31 @@ impl Generator {
                             for schema in &inner_schemas {
                                 let local_refs = get_references_for_schema(schema)
                                     .iter()
-                                    .filter(|r| r.starts_with('#'))
+                                    //.filter(|r| r.starts_with('#'))
                                     .map(|r| r.to_string())
                                     .collect::<Vec<String>>();
                                 inner_refs.extend(local_refs);
                             }
                             eprintln!("loop_count:{}, inner_refs: {:#?}", loop_count, inner_refs);
 
-                            for inner in &inner_refs {
-                                aux_inner_references.insert((file.to_string(), inner.to_string()));
-                            }
+                            // We are done with inner schemas for this iteration of the loop, We
+                            // may get more `inner_schemas` below.
                             inner_schemas.drain(..);
-                            for inner in inner_refs {
-                                let (_, schema) =
-                                    get_component_schema_from_reference_in_spec(aux_spec, &inner);
+                            for inner in &inner_refs {
+                                let parts = inner.split('#').collect::<Vec<_>>();
+                                let (rfile, reference) = (parts[0], parts[1]);
+                                let rfile = if rfile.is_empty() {
+                                    reference_file
+                                } else {
+                                    rfile
+                                };
+                                all_references.insert((rfile.to_string(), reference.to_string()));
+
+                                let spec_module = self.specs.get(rfile).unwrap();
+                                let (_, schema) = get_component_schema_from_reference_in_spec(
+                                    &spec_module.spec,
+                                    &inner,
+                                );
                                 match schema.unwrap() {
                                     ReferenceOr::Item(s) => inner_schemas.push(s),
                                     _ => {}
@@ -322,124 +323,74 @@ impl Generator {
                 }
             }
         }
+        //eprintln!("all_references: {:#?}", all_references);
 
-        for (aux_file, aux_ref) in aux_inner_references {
-            let aux_spec = aux_map.as_ref().unwrap().get(&aux_file).unwrap();
-
-            // We now have a reference and a spec, let's try to resolve that.
-            let (component, schema) =
-                get_component_schema_from_reference_in_spec(&aux_spec, &aux_ref);
-            match schema.unwrap() {
-                ReferenceOr::Reference { reference } => {
-                    unresolved_items.push((component.to_string(), reference.to_string()))
+        let mut all_schemas = HashMap::new();
+        for (file, reference) in all_references {
+            let spec_module = self.specs.get(&file).unwrap();
+            let spec = &spec_module.spec;
+            let (component, schema) = get_component_schema_from_reference_in_spec(spec, &reference);
+            eprintln!(
+                "reference: {}, component: {}, file: {}",
+                reference, component, file
+            );
+            let schema = schema.unwrap();
+            match schema {
+                ReferenceOr::Reference { .. } => {
+                    unreachable!();
                 }
-                ReferenceOr::Item(s) => {
-                    resolved_items.push(resolve_schema_component(&component, &s, handlers, false));
+                ReferenceOr::Item(ref s) => {
+                    all_schemas.insert(component.clone(), s.clone());
                 }
             }
         }
 
         for spec_module in self.specs.values() {
-            let spec = &spec_module.spec;
-
-            if spec.components.is_none() {
+            if !spec_module.input {
                 continue;
             }
+
+            let spec = &spec_module.spec;
             let components = spec.components.as_ref().unwrap();
             for (component, schema) in &components.schemas {
                 match schema {
-                    ReferenceOr::Reference { reference } => {
-                        // We now have a component, which has a reference to a schema within the
-                        // same spec object. We could simply create a Type Alias, but you cannot
-                        // easily to `serde` and stuff like that on those Type Aliases. So we
-                        // simply, create a `struct` / `enum` like referred Schema.
-                        // To do that, we need to get the Schema object first and then use
-                        // 'component' name - The referred component name is ignored
-                        // (`_ignored_component`)
-                        let (_ignore_component, schema) =
-                            get_component_schema_from_reference_in_spec(spec, reference);
-                        let schema = if schema.is_none() {
-                            // Well the reference was not local, but from one of the 'input_specs',
-                            // so try to get it from there. If not we are going to give up and
-                            // panic! This should have been caught at `find_missing_files_if_any`.
-                            let (_ignore_component, schema) = self
-                                .get_compoenent_schema_from_input_specs_for_reference(reference);
-                            if schema.is_none() {
-                                unreachable!();
-                            }
-                            schema
-                        } else {
-                            schema
-                        };
-                        match schema.unwrap() {
-                            ReferenceOr::Reference { .. } => {
-                                unreachable!();
-                            }
-                            ReferenceOr::Item(s) => {
-                                resolved_items.push(resolve_schema_component(
-                                    &component, &s, handlers, false,
-                                ));
-                            }
-                        }
+                    ReferenceOr::Reference { .. } => {
+                        unreachable!();
                     }
-                    ReferenceOr::Item(s) => {
-                        resolved_items
-                            .push(resolve_schema_component(component, s, handlers, false));
+                    ReferenceOr::Item(ref s) => {
+                        all_schemas.insert(component.clone(), s.clone());
                     }
                 }
             }
         }
 
-        if unresolved_items.is_empty() {
-            let mut code = resolved_items
-                .iter()
-                .flatten()
-                .map(|s| s.tokens.to_string())
-                .collect::<Vec<_>>();
+        eprintln!("all_schemas count: {:#?}", all_schemas.len());
 
-            let mut aux_code = resolved_items
-                .into_iter()
-                .flatten()
-                .map(|s| s.aux_tokens.to_string())
-                .collect::<Vec<_>>();
-
-            code.extend(aux_code);
-            code.sort();
-            let code = code.join("\n");
-
-            let code = self.rustfmt_generated_code(&code)?;
-
-            println!("{}", code);
-            Ok(())
-        } else {
-            Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!(
-                    "Unresolved Items: {}",
-                    unresolved_items
-                        .iter()
-                        .map(|r| r.1.clone())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                ),
-            ))
+        let mut resolved_items = vec![];
+        for (c, s) in all_schemas {
+            resolved_items.push(resolve_schema_component(&c, &s, handlers, false)?);
         }
-    }
 
-    fn get_compoenent_schema_from_input_specs_for_reference(
-        &self,
-        reference: &str,
-    ) -> (String, Option<ReferenceOr<Schema>>) {
-        for spec_module in self.specs.values() {
-            let components: _ = reference.rsplit("/").collect::<Vec<_>>();
-            let component = components[0];
-            let schemas = &spec_module.spec.components.as_ref().unwrap().schemas;
-            let schema = schemas.get(component);
-            if schema.is_some() {
-                return (component.to_string(), schema.cloned());
-            }
-        }
-        ("".to_string(), None)
+        let mut code = resolved_items
+            .iter()
+            .map(|s| s.tokens.to_string())
+            .collect::<Vec<_>>();
+
+        let aux_code = resolved_items
+            .into_iter()
+            .map(|s| s.aux_tokens.to_string())
+            .collect::<Vec<_>>();
+
+        code.extend(aux_code);
+        code.sort();
+        let code = code.join("\n");
+
+        let code = self.rustfmt_generated_code(&code)?;
+
+        eprintln!("unresolved_items: {}", unresolved_items.len());
+        println!("{}", code);
+
+        todo!()
     }
 
     fn rustfmt_generated_code(&self, code: &str) -> std::io::Result<String> {

@@ -46,7 +46,7 @@ impl ResolvedOneOfType {
     }
 }
 pub(super) fn resolve_schema_component_kind_oneof(
-    data: &SchemaData,
+    _data: &SchemaData,
     kind: &SchemaKind,
 ) -> std::io::Result<ResolvedOneOfType> {
     if let SchemaKind::OneOf { one_of } = kind {

@@ -28,6 +28,7 @@ use oneof::resolve_schema_component_kind_oneof;
 
 pub type AnyOfHandler = fn(name: &str, anyof: &SchemaKind) -> std::io::Result<TokenStream>;
 
+#[derive(Debug, Clone)]
 pub(super) struct ResolvedSchemaComponent {
     pub(super) tokens: TokenStream,
     pub(super) aux_tokens: TokenStream,
