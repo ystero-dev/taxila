@@ -390,7 +390,7 @@ impl Generator {
         eprintln!("unresolved_items: {}", unresolved_items.len());
         println!("{}", code);
 
-        todo!()
+        Ok(())
     }
 
     fn rustfmt_generated_code(&self, code: &str) -> std::io::Result<String> {
