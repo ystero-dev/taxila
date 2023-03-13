@@ -124,17 +124,24 @@ fn main() -> std::io::Result<()> {
         // file_modules
         &[
             // ("TS29571_CommonData.yaml", "common_data"),
-            ("TS29509_Nausf_UEAuthentication.yaml", "common_data"),
+            ("TS29509_Nausf_UEAuthentication.yaml", "ausf_auth"),
+            ("TS29510_Nnrf_NFManagement.yaml", "nrf_nfm"),
             // ("TS29509_Nausf_SoRProtection.yaml", "common_data"),
         ],
         // aux_files:
         &[
-            "TS29571_CommonData.yaml",
-            "TS29510_Nnrf_NFManagement.yaml",
+            "TS29503_Nudm_UEAU.yaml",
+            "TS29503_Nudm_UECM.yaml",
+            "TS29503_Nudm_SDM.yaml",
+            "TS29510_Nnrf_NFDiscovery.yaml",
             "TS29510_Nnrf_AccessToken.yaml",
             "TS29514_Npcf_PolicyAuthorization.yaml",
+            "TS29517_Naf_EventExposure.yaml",
+            "TS29518_Namf_Communication.yaml",
+            "TS29520_Nnwdaf_AnalyticsInfo.yaml",
+            "TS29520_Nnwdaf_EventsSubscription.yaml",
+            "TS29571_CommonData.yaml",
             "TS29572_Nlmf_Location.yaml",
-            "TS29503_Nudm_UEAU.yaml",
         ],
         // schema_only
         false,

@@ -4,6 +4,8 @@ use openapiv3::*;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 
+use crate::AnyOfHandler;
+
 use super::{
     resolve_reference_or_box_schema_component, sanitize_str_for_ident, ResolvedSchemaComponent,
 };
@@ -15,6 +17,7 @@ use super::{
 pub(super) fn resolve_schema_component_kind_object(
     data: &SchemaData,
     object: &ObjectType,
+    anyof_handlers: &Option<Vec<AnyOfHandler>>,
 ) -> std::io::Result<ResolvedObjectType> {
     let (field_tokens, aux_tokens) = if object.additional_properties.is_some() {
         let additional = object.additional_properties.as_ref().unwrap();
@@ -45,8 +48,12 @@ pub(super) fn resolve_schema_component_kind_object(
         for (prop_name, prop_value) in &object.properties {
             let prop_ident = Ident::new(&sanitize_str_for_ident(prop_name), Span::call_site());
 
-            let (prop_toks, is_schema) =
-                resolve_reference_or_box_schema_component(prop_name, data, prop_value)?;
+            let (prop_toks, is_schema) = resolve_reference_or_box_schema_component(
+                prop_name,
+                data,
+                prop_value,
+                anyof_handlers,
+            )?;
             let is_required = object.required.iter().find(|&s| s == prop_name).is_some();
             let field_aux_tokens = prop_toks.aux_tokens;
             let prop_toks = if !is_required {

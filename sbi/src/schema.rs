@@ -44,15 +44,18 @@ pub(crate) fn resolve_schema_component(
     inner: bool,
 ) -> std::io::Result<ResolvedSchemaComponent> {
     match &schema.schema_kind {
-        SchemaKind::Type(_) => resolve_schema_type_component(name, schema, inner),
+        SchemaKind::Type(_) => resolve_schema_type_component(name, schema, anyof_handlers, inner),
         SchemaKind::AnyOf { .. } => {
             resolve_anyof_schema_components(name, &schema.schema_kind, anyof_handlers)
         }
         SchemaKind::OneOf { .. } => resolve_oneof_schema_components(name, schema, inner),
-        _ => Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Not implemented yet!",
-        )),
+        _ => {
+            eprintln!("name: {}, schema: {:#?}", name, schema);
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("{}: {:#?}: Not implemented yet!", name, schema),
+            ));
+        }
     }
 }
 
@@ -64,6 +67,7 @@ pub(crate) fn resolve_schema_component(
 fn resolve_schema_type_component(
     name: &str,
     schema: &Schema,
+    anyof_handlers: &Option<Vec<AnyOfHandler>>,
     inner: bool,
 ) -> std::io::Result<ResolvedSchemaComponent> {
     let ident = Ident::new(&sanitize_str_for_ident(&name), Span::call_site());
@@ -74,7 +78,8 @@ fn resolve_schema_type_component(
                 string_tokens.generate(ident, inner)
             }
             Type::Object(ref o) => {
-                let object_tokens = resolve_schema_component_kind_object(&schema.schema_data, o)?;
+                let object_tokens =
+                    resolve_schema_component_kind_object(&schema.schema_data, o, anyof_handlers)?;
                 object_tokens.generate(ident, inner)
             }
             Type::Array(ref a) => {
@@ -105,6 +110,7 @@ fn resolve_reference_or_box_schema_component(
     name: &str,
     _data: &SchemaData,
     ref_or_schema: &ReferenceOr<Box<Schema>>,
+    anyof_handlers: &Option<Vec<AnyOfHandler>>,
 ) -> std::io::Result<(ResolvedSchemaComponent, bool)> {
     match ref_or_schema {
         ReferenceOr::Reference { reference } => {
@@ -120,7 +126,10 @@ fn resolve_reference_or_box_schema_component(
                 false,
             ))
         }
-        ReferenceOr::Item(ref s) => Ok((resolve_schema_component(name, s, &None, true)?, true)),
+        ReferenceOr::Item(ref s) => Ok((
+            resolve_schema_component(name, s, anyof_handlers, true)?,
+            true,
+        )),
     }
 }
 
@@ -138,6 +147,8 @@ pub fn sanitize_str_for_ident(name: &str) -> String {
         name.replace("5G", "FIVEG")
     } else if name.starts_with("3GPP") {
         name.replace("3GPP", "THREEGPP")
+    } else if name.starts_with("3gpp") {
+        name.replace("3GPP", "threegpp")
     } else {
         sanitize_keywords(&name.replace('-', "_").trim_matches('"'))
     }

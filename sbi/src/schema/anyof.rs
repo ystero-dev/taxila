@@ -13,7 +13,6 @@ pub(super) fn resolve_schema_component_anyof(
     handlers: &Vec<AnyOfHandler>,
 ) -> std::io::Result<ResolvedSchemaComponent> {
     for handler in handlers {
-        eprintln!("resolving name: {}", name);
         let result = handler(name, any_of);
         if result.is_ok() {
             return Ok(ResolvedSchemaComponent {

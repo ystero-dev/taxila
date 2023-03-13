@@ -10,8 +10,8 @@ use openapiv3::*;
 
 use crate::AnyOfHandler;
 
-use super::schema::resolve_schema_component;
 use super::utils::{get_dependent_refs_for_spec, get_references_for_schema};
+use super::{default_anyof_handler, schema::resolve_schema_component};
 
 #[derive(Debug, Clone)]
 pub struct Generator {
@@ -66,7 +66,7 @@ impl Generator {
         files_modules: &[(P, &str)],
         aux_files: &[&str],
         schema_only: bool,
-        handlers: Option<Vec<AnyOfHandler>>,
+        mut handlers: Option<Vec<AnyOfHandler>>,
     ) -> std::io::Result<()>
     where
         P: AsRef<Path> + std::cmp::Ord + std::fmt::Debug,
@@ -91,8 +91,12 @@ impl Generator {
             .aux_files
             .replace(aux_files.iter().map(|&x| x.to_string()).collect());
 
+        if let Some(ref mut input_handlers) = handlers {
+            input_handlers.push(default_anyof_handler);
+        }
         self.all_component_schemas(&handlers)?;
 
+        eprintln!("self.specs: {:#?}", self.specs);
         Ok(())
     }
 
@@ -289,6 +293,8 @@ impl Generator {
             }
         }
 
+        //
+        let mut ref_schemas = HashMap::new();
         let mut all_schemas = HashMap::new();
         for (file, reference) in all_references {
             if reference.find("schemas").is_none() {
@@ -303,12 +309,43 @@ impl Generator {
             );
             let schema = schema.unwrap();
             match schema {
-                ReferenceOr::Reference { .. } => {
-                    unreachable!();
+                ReferenceOr::Reference { reference } => {
+                    eprintln!("Reference: {}", reference);
+                    let ref_components: _ = reference.rsplit("/").collect::<Vec<_>>();
+                    let ref_component = ref_components[0];
+                    ref_schemas
+                        .insert(component.clone(), (file.clone(), ref_component.to_string()));
                 }
                 ReferenceOr::Item(ref s) => {
                     all_schemas.insert(component.clone(), s.clone());
                 }
+            }
+        }
+
+        // For a reference in auxiliary file, which refers to schema in the same file, we have yet
+        // not made an entry into `all_schemas` because `all_schemas` contains only 'schema items'
+        // and not 'references'. There might be a case where 'such' reference will be to an
+        // external file, we will fix that when we actually hit such a situation.
+        for (c, (f, r)) in &ref_schemas {
+            eprintln!("c: {}, f: {}, r: {}", c, f, r);
+            let schema_item = all_schemas.get(r);
+            if schema_item.is_none() {
+                let spec_module = self.specs.get(f).unwrap();
+                let spec = &spec_module.spec;
+                let (component, schema) = get_component_schema_from_reference_in_spec(spec, &r);
+                eprintln!("reference: {}, component: {}, file: {}", r, component, f);
+                let schema = schema.unwrap();
+                match schema {
+                    ReferenceOr::Reference { reference } => {
+                        eprintln!("reference: {}", reference);
+                        unreachable!();
+                    }
+                    ReferenceOr::Item(ref s) => {
+                        all_schemas.insert(component.clone(), s.clone());
+                    }
+                }
+            } else {
+                all_schemas.insert(c.clone(), schema_item.unwrap().clone());
             }
         }
 
