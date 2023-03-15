@@ -26,6 +26,7 @@ pub(super) fn resolve_schema_component_kind_array(
             ReferenceOr::Item(s) => match &s.schema_kind {
                 SchemaKind::Type(t) => match t {
                     Type::String(_) => tokens.extend(quote! { Vec<String> }),
+                    Type::Integer(_) => tokens.extend(quote! { Vec<String> }),
                     _ => {
                         eprintln!("item_schema: {:#?}", items_schema);
                         todo!()

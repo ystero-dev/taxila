@@ -3,8 +3,8 @@ info:
   version: '1.2.1'
   title: 'Nudm_UEAU'
   description: |
-    UDM UE Authentication Service.  
-    © 2022, 3GPP Organizational Partners (ARIB, ATIS, CCSA, ETSI, TSDSI, TTA, TTC).  
+    UDM UE Authentication Service.
+    © 2022, 3GPP Organizational Partners (ARIB, ATIS, CCSA, ETSI, TSDSI, TTA, TTC).
     All rights reserved.
 
 externalDocs:
@@ -781,26 +781,26 @@ components:
 # ENUMS:
 
     AuthType:
-      anyOf:
-        - type: string
+#     anyOf:
+          type: string
           enum:
           - 5G_AKA
           - EAP_AKA_PRIME
           - EAP_TLS
           - NONE
           - EAP_TTLS
-        - type: string
+#       - type: string
 
     AvType:
-      anyOf:
+#     anyOf:
         - type: string
           enum:
           - 5G_HE_AKA
           - EAP_AKA_PRIME
-        - type: string
+#       - type: string
 
     HssAuthType:
-      anyOf:
+#     anyOf:
         - type: string
           enum:
           - EPS_AKA
@@ -809,10 +809,10 @@ components:
           - IMS_AKA
           - GBA_AKA
           - UMTS_AKA
-        - type: string
+#       - type: string
 
     HssAvType:
-      anyOf:
+#     anyOf:
         - type: string
           enum:
           - EPS_AKA
@@ -820,10 +820,10 @@ components:
           - IMS_AKA
           - GBA_AKA
           - UMTS_AKA
-        - type: string
+#       - type: string
 
     HssAuthTypeInUri:
-      anyOf:
+#     anyOf:
         - type: string
           enum:
           - eps-aka
@@ -831,20 +831,20 @@ components:
           - eap-aka-prime
           - ims-aka
           - gba-aka
-        - type: string
+#       - type: string
 
     AccessNetworkId:
-      anyOf:
+#     anyOf:
         - type: string
           enum:
           - HRPD
           - WIMAX
           - WLAN
           - ETHERNET
-        - type: string
+#       - type: string
 
     NodeType:
-      anyOf:
+#     anyOf:
         - type: string
           enum:
           - AUSF
@@ -855,12 +855,12 @@ components:
           - GAN_AAA_SERVER
           - WLAN_AAA_SERVER
           - MME
-        - type: string
+#       - type: string
 
     GbaAuthType:
-      anyOf:
+#     anyOf:
         - type: string
           enum:
           - DIGEST_AKAV1_MD5
-        - type: string
+#       - type: string
 
