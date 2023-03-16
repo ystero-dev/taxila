@@ -3,6 +3,8 @@
 //! The main NAS Manager thread. This is responsible for managing Network side NAS state for the
 //! UEs.
 
+use std::collections::HashMap;
+
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use ngap::messages::r17::NAS_PDU;
@@ -13,16 +15,22 @@ use nas::messages::{
 };
 
 use crate::amf::config::AmfConfig;
-use crate::amf::messages::{AmfToNasMessage, NasToAmfMessage};
+use crate::amf::messages::{AmfToNasMessage, NasPduMessage, NasToAmfMessage};
+
+use super::amf_ue::AmfUe;
 
 #[derive(Debug, Clone)]
 pub(in crate::amf) struct NasManager {
     pub(crate) config: AmfConfig,
+    pub(crate) amf_ues: HashMap<u64, AmfUe>,
 }
 
 impl NasManager {
     pub(in crate::amf) fn from_config(config: AmfConfig) -> std::io::Result<Self> {
-        Ok(Self { config })
+        Ok(Self {
+            config,
+            amf_ues: HashMap::new(),
+        })
     }
 
     pub(in crate::amf) async fn run(
@@ -45,7 +53,7 @@ impl NasManager {
                             log::debug!("received NAS PDU Message from AMF: {:?}", ext_proto_disc);
                             match ext_proto_disc {
                                 ExtProtoDiscriminator::FivegNasMobilityManagementType => {
-                                    self.decode_nas_mm_message(msg.pdu)?;
+                                    self.handle_nas_mm_message(msg)?;
                                 }
                                 _ => todo!(),
                             }
@@ -59,12 +67,28 @@ impl NasManager {
         Ok(())
     }
 
-    fn decode_nas_mm_message(&self, nas_pdu: NAS_PDU) -> std::io::Result<()> {
-        let (header, decoded) = Nas5gMmMessageHeader::decode(&nas_pdu.0)?;
+    // Decode the received NAS Message. The received NAS message may be a plain-text message or an
+    // integrity protected and/or ciphered message.
+    fn handle_nas_mm_message(&mut self, msg: NasPduMessage) -> std::io::Result<()> {
+        let (header, decoded) = Nas5gMmMessageHeader::decode(&msg.pdu.0)?;
+
+        if msg.initial_ue {
+            // First get the `AmfUe` for the given `id`.
+            let amf_ue = self.amf_ues.get(&msg.id);
+            if amf_ue.is_some() {
+                // initial UE Message and we still have an `AmfUe` Entry somewhere? Right now just
+                // log a warning and remove this entry!
+                log::warn!("Initial UE Message and exisitng `AmfUe`. Deleting it...");
+                let _ = self.amf_ues.remove_entry(&msg.id);
+            }
+            self.amf_ues.insert(msg.id, AmfUe {});
+        };
+        // Get the AMF UE corresponding to the `amf_ngap_ue_id`.
+        let mut amf_ue = self.amf_ues.get(&msg.id);
 
         match header.sec_header_type {
             Nas5gSecurityHeader::PlainText => {
-                Self::decode_nas_message(&header, nas_pdu)?;
+                Self::decode_nas_message(&header, msg.pdu)?;
             }
             _ => todo!(),
         }

@@ -79,6 +79,13 @@ impl NgapManager {
 
         // Store the received information in the `NgapRanUe` and then pass the PDU for NAS
         // processing.
+        //
+        // TODO: Is it possible that we receive an `InitialUE` message for a UE, but we have a Nas
+        // context available for that UE? Usually in the case of a handoff, so right now we are not
+        // considering that possibility. `InitialUE` means, this is the first message from the UE
+        // that we are receiving.
+        //
+        // The returned `id` is the `amf_ngap_ue_id`
         let id = self.add_ran_ue(
             id,
             sid,
@@ -89,7 +96,11 @@ impl NgapManager {
         );
 
         let pdu = nas_pdu.unwrap();
-        let message = NgapToAmfMessage::NasPduMessage(NasPduMessage { id, pdu });
+        let message = NgapToAmfMessage::NasPduMessage(NasPduMessage {
+            id,
+            pdu,
+            initial_ue: true,
+        });
         let _ = self.ngap_to_amf_tx.as_ref().unwrap().send(message).await;
 
         Ok(())

@@ -13,6 +13,7 @@ pub(crate) enum NgapToAmfMessage {
 pub(crate) struct NasPduMessage {
     pub(crate) id: u64,
     pub(crate) pdu: NAS_PDU,
+    pub(crate) initial_ue: bool,
 }
 
 // Message sent to NGAP by RAN Connection Task
