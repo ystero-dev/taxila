@@ -7,12 +7,7 @@ use std::collections::HashMap;
 
 use tokio::sync::mpsc::{Receiver, Sender};
 
-use ngap::messages::r17::NAS_PDU;
-
-use nas::messages::{
-    headers::{ExtProtoDiscriminator, Nas5gMmMessageHeader, Nas5gSecurityHeader},
-    RegistrationRequest, MM_MSG_TYPE_REGISTRATION_REQUEST,
-};
+use nas::messages::headers::ExtProtoDiscriminator;
 
 use crate::amf::config::AmfConfig;
 use crate::amf::messages::{AmfToNasMessage, NasPduMessage, NasToAmfMessage};
@@ -70,8 +65,6 @@ impl NasManager {
     // Decode the received NAS Message. The received NAS message may be a plain-text message or an
     // integrity protected and/or ciphered message.
     fn handle_nas_mm_message(&mut self, msg: NasPduMessage) -> std::io::Result<()> {
-        let (header, decoded) = Nas5gMmMessageHeader::decode(&msg.pdu.0)?;
-
         if msg.initial_ue {
             // First get the `AmfUe` for the given `id`.
             let amf_ue = self.amf_ues.get(&msg.id);
@@ -81,28 +74,24 @@ impl NasManager {
                 log::warn!("Initial UE Message and exisitng `AmfUe`. Deleting it...");
                 let _ = self.amf_ues.remove_entry(&msg.id);
             }
-            self.amf_ues.insert(msg.id, AmfUe {});
+            self.amf_ues.insert(msg.id, AmfUe::new_amf_ue(msg.id));
         };
         // Get the AMF UE corresponding to the `amf_ngap_ue_id`.
-        let mut amf_ue = self.amf_ues.get(&msg.id);
+        let amf_ue = self.amf_ues.get_mut(&msg.id);
 
-        match header.sec_header_type {
-            Nas5gSecurityHeader::PlainText => {
-                Self::decode_nas_message(&header, msg.pdu)?;
-            }
-            _ => todo!(),
+        if amf_ue.is_none() {
+            log::error!(
+                "Unable to find AMF UE corresponding to AMF_NGAP_UE_ID: {}",
+                msg.id
+            );
         }
 
-        Ok(())
-    }
+        let mut amf_ue = amf_ue.unwrap();
 
-    // This is a decrypted message, which will be decoded and right now only printed. Eventually,
-    // this is the message type that will be returned by this function.
-    fn decode_nas_message(header: &Nas5gMmMessageHeader, nas_pdu: NAS_PDU) -> std::io::Result<()> {
-        if header.message_type == MM_MSG_TYPE_REGISTRATION_REQUEST {
-            let (reg_request, decoded) = RegistrationRequest::decode(&nas_pdu.0)?;
-            log::debug!("Reg Request: {:#?}", reg_request);
+        if msg.initial_ue {
+            amf_ue.handle_initial_mm_message(msg.pdu)
+        } else {
+            amf_ue.handle_mm_message(msg.pdu)
         }
-        Ok(())
     }
 }
