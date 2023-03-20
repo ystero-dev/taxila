@@ -1,32 +1,12 @@
 /// NAS 5GS Memory Management common header. This header will be part of all NAS Messages from the
 /// 24.501 (Release 17) Section 8.2 5 GS mobility management messages.
-use super::ExtProtoDiscriminator;
+use super::{ExtProtoDiscriminator, Nas5gSecurityHeader};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Nas5gMmMessageHeader {
     pub extended_protocol_disc: ExtProtoDiscriminator,
     pub sec_header_type: Nas5gSecurityHeader,
     pub message_type: u8,
-}
-
-/// An Enum representing NAS Security Header Type
-/// See 24.501 (Release 17) Section 9.3
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum Nas5gSecurityHeader {
-    /// No Security and Integrity protection for NAS Messages.
-    PlainText = 0x00,
-
-    /// Integrity Protected.
-    IntegrityProtected = 0x01,
-
-    /// Integrity Protected and Ciphered
-    IntegrityProtectedAndCiphered = 0x02,
-
-    /// Integrity Protected Security Mode Command
-    IntegrityProtectedSecurityModeCommand = 0x03,
-
-    /// Integrity Protected Security Mode Complete
-    IntegrityProtectedSecurityModeComplete = 0x04,
 }
 
 impl Nas5gMmMessageHeader {
