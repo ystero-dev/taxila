@@ -4,8 +4,10 @@ use ngap::messages::r17::NAS_PDU;
 
 use nas::messages::{
     headers::{Nas5gMmMessageHeader, Nas5gSecurityHeader, NasMessageHeader},
-    RegistrationRequest, MM_MSG_TYPE_REGISTRATION_REQUEST,
+    Nas5gMmMessage, RegistrationRequest,
 };
+
+mod registration_procedure;
 
 #[derive(Debug, Clone)]
 pub(in crate::amf) struct AmfUe {
@@ -27,7 +29,7 @@ impl AmfUe {
             NasMessageHeader::SecurityProtected(_) => {
                 self.handle_security_protected_initial_nas_message(nas_pdu)
             }
-            NasMessageHeader::Nas5gMm(h) => self.handle_initial_nas_5gmm_message(h, nas_pdu),
+            NasMessageHeader::Nas5gMm(_) => self.handle_initial_nas_5gmm_message(nas_pdu),
             NasMessageHeader::Nas5gSm(_) => self.handle_initial_nas_5gsm_message(nas_pdu),
         }
     }
@@ -45,10 +47,15 @@ impl AmfUe {
 
     pub(in crate::amf) fn handle_initial_nas_5gmm_message(
         &mut self,
-        header: Nas5gMmMessageHeader,
         nas_pdu: NAS_PDU,
     ) -> std::io::Result<()> {
-        Self::decode_nas_message(header, nas_pdu)
+        let message = Nas5gMmMessage::decode(&nas_pdu.0)?;
+
+        match message {
+            Nas5gMmMessage::RegistrationRequest(reg_request) => {
+                self.registration_procedure(reg_request, true)
+            }
+        }
     }
 
     pub(in crate::amf) fn handle_initial_nas_5gsm_message(
@@ -56,15 +63,5 @@ impl AmfUe {
         nas_pdu: NAS_PDU,
     ) -> std::io::Result<()> {
         todo!();
-    }
-
-    // This is a decrypted message, which will be decoded and right now only printed. Eventually,
-    // this is the message type that will be returned by this function.
-    fn decode_nas_message(header: Nas5gMmMessageHeader, nas_pdu: NAS_PDU) -> std::io::Result<()> {
-        if header.message_type == MM_MSG_TYPE_REGISTRATION_REQUEST {
-            let (reg_request, decoded) = RegistrationRequest::decode(&nas_pdu.0)?;
-            log::debug!("Reg Request: {:#?}", reg_request);
-        }
-        Ok(())
     }
 }

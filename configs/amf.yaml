@@ -1,7 +1,7 @@
 # NGAP Configurations, we support a list of Addresses and a port as NGAP Configuration
 ngap:
   addrs:
-    - 127.0.0.1
+    - 127.0.0.5
     - ::1
   port: 38412
   output_streams: 100

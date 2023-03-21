@@ -1,7 +1,9 @@
-//! NAS Messages
+//! 5G MM RegistrationRequest
 
-use super::headers::Nas5gMmMessageHeader;
-use super::ies::{FivegRegistrationType, FivegsMobileIdentity, NasKeySetId, UeSecurityCapability};
+use crate::messages::{
+    headers::Nas5gMmMessageHeader,
+    ies::{FivegRegistrationType, FivegsMobileIdentity, NasKeySetId, UeSecurityCapability},
+};
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct RegistrationRequest {

@@ -32,7 +32,7 @@ impl NgapManager {
             sid
         );
 
-        log::trace!("Message: {:#?}", initial_ue);
+        log::debug!("Message: {:#?}", initial_ue);
 
         let mut nas_pdu = None;
         let mut user_location = None;
@@ -43,7 +43,8 @@ impl NgapManager {
         for ie in initial_ue.protocol_i_es.0 {
             match ie.value {
                 InitialIEValue::Id_RAN_UE_NGAP_ID(r) => {
-                    ran_ue_ngap_id = ran_ue_ngap_id.replace(r.0);
+                    log::debug!("RAN_UE_NGAP_ID_FOUND");
+                    ran_ue_ngap_id.replace(r.0);
                 }
                 InitialIEValue::Id_NAS_PDU(inner_nas_pdu) => {
                     nas_pdu.replace(inner_nas_pdu);
