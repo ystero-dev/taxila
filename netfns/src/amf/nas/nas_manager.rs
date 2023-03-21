@@ -44,14 +44,7 @@ impl NasManager {
                         AmfToNasMessage::NasPduMessage(msg) => {
                             // First Octet is Extended Protocol Identity, Use it to call
                             // appropriate function to decode (and handle) the rest of the message.
-                            let ext_proto_disc = msg.pdu.0[0].into();
-                            log::debug!("received NAS PDU Message from AMF: {:?}", ext_proto_disc);
-                            match ext_proto_disc {
-                                ExtProtoDiscriminator::FivegNasMobilityManagementType => {
-                                    self.handle_nas_mm_message(msg)?;
-                                }
-                                _ => todo!(),
-                            }
+                            self.handle_nas_message(msg)?;
                         }
                     }
                 }
@@ -64,7 +57,7 @@ impl NasManager {
 
     // Decode the received NAS Message. The received NAS message may be a plain-text message or an
     // integrity protected and/or ciphered message.
-    fn handle_nas_mm_message(&mut self, msg: NasPduMessage) -> std::io::Result<()> {
+    fn handle_nas_message(&mut self, msg: NasPduMessage) -> std::io::Result<()> {
         if msg.initial_ue {
             // First get the `AmfUe` for the given `id`.
             let amf_ue = self.amf_ues.get(&msg.id);
@@ -80,18 +73,20 @@ impl NasManager {
         let amf_ue = self.amf_ues.get_mut(&msg.id);
 
         if amf_ue.is_none() {
-            log::error!(
+            let err_string = format!(
                 "Unable to find AMF UE corresponding to AMF_NGAP_UE_ID: {}",
                 msg.id
             );
+            log::error!("{}", &err_string);
+            return Err(std::io::Error::new(std::io::ErrorKind::Other, err_string));
         }
 
         let mut amf_ue = amf_ue.unwrap();
 
         if msg.initial_ue {
-            amf_ue.handle_initial_mm_message(msg.pdu)
+            amf_ue.handle_initial_nas_message(msg.pdu)
         } else {
-            amf_ue.handle_mm_message(msg.pdu)
+            amf_ue.handle_nas_message(msg.pdu)
         }
     }
 }
